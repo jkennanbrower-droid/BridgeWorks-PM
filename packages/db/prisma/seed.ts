@@ -2,7 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { Prisma, PrismaClient, UserStatus } from "../generated/prisma";
+import { OrgRole, Prisma, PrismaClient, UnitType, UserStatus } from "../generated/prisma";
 import { getPrisma } from "../src/prisma";
 import { getPool } from "../src/pool";
 
@@ -66,6 +66,16 @@ function sha256(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
 
+function stableUuid(prefix: string, value: string): string {
+  const hex = sha256(`${prefix}:${value}`).slice(0, 32);
+  // uuid v4-ish formatting (deterministic); set version=4 and variant=10
+  const bytes = Buffer.from(hex, "hex");
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const b = bytes.toString("hex");
+  return `${b.slice(0, 8)}-${b.slice(8, 12)}-${b.slice(12, 16)}-${b.slice(16, 20)}-${b.slice(20)}`;
+}
+
 function token(prefix: string, value: string): string {
   return sha256(`${prefix}:${value}`);
 }
@@ -87,6 +97,18 @@ type SeedUser = {
 };
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
+
+type SeedMode = "mvp" | "full";
+const seedMode: SeedMode = process.env.PB_SEED_MODE === "mvp" ? "mvp" : "full";
+const seedScale = Math.max(1, Math.min(50, Number(process.env.PB_SEED_SCALE ?? "10") || 10));
+const unitsPerProperty = Math.max(
+  3,
+  Math.min(50, Number(process.env.PB_UNITS_PER_PROPERTY ?? "12") || 12),
+);
+const occupancyRate = Math.max(
+  0.1,
+  Math.min(0.95, Number(process.env.PB_OCCUPANCY_RATE ?? "0.65") || 0.65),
+);
 
 const users: SeedUser[] = [
   {
@@ -249,6 +271,13 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
       bio: `Seed user ${user.displayName} for local development.`,
       timezone: "America/Denver",
       locale: "en-US",
+      applicantStatus:
+        status === "INVITED"
+          ? "WAITING_APPROVAL"
+          : user.username === "sam"
+            ? "PRE_APPLICANT"
+            : null,
+      applicantStatusUpdatedAt: status === "INVITED" ? new Date() : null,
     },
     update: {
       firstName: user.firstName,
@@ -257,6 +286,13 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
       phone: user.phone ?? null,
       timezone: "America/Denver",
       locale: "en-US",
+      applicantStatus:
+        status === "INVITED"
+          ? "WAITING_APPROVAL"
+          : user.username === "sam"
+            ? "PRE_APPLICANT"
+            : null,
+      applicantStatusUpdatedAt: status === "INVITED" ? new Date() : null,
     },
   });
 
@@ -296,7 +332,7 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
     },
   });
 
-  if (status === "ACTIVE" && ["alex", "jamie", "quinn"].includes(user.username)) {
+  if (seedMode === "full" && status === "ACTIVE" && ["alex", "jamie", "quinn"].includes(user.username)) {
     await prisma.authAccount.create({
       data: {
         userId: upserted.id,
@@ -314,17 +350,20 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
     where: { userId: upserted.id },
   });
 
-  await prisma.session.createMany({
-    data: [
-      {
-        userId: upserted.id,
-        tokenHash: token("session", `${normalizedEmail}:primary`),
-        expiresAt: nowPlusDays(7),
-        ip: "127.0.0.1",
-        userAgent: "seed-script",
-        deviceId: `device:${user.username}`,
-      },
-      {
+  await prisma.session.create({
+    data: {
+      userId: upserted.id,
+      tokenHash: token("session", `${normalizedEmail}:primary`),
+      expiresAt: nowPlusDays(7),
+      ip: "127.0.0.1",
+      userAgent: "seed-script",
+      deviceId: `device:${user.username}`,
+    },
+  });
+
+  if (seedMode === "full") {
+    await prisma.session.create({
+      data: {
         userId: upserted.id,
         tokenHash: token("session", `${normalizedEmail}:secondary`),
         expiresAt: nowPlusDays(3),
@@ -332,38 +371,40 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
         userAgent: "seed-script",
         deviceId: `device:${user.username}:2`,
       },
-    ],
-  });
+    });
+  }
 
   await prisma.userToken.deleteMany({
     where: { userId: upserted.id },
   });
 
-  await prisma.userToken.createMany({
-    data: [
-      {
-        userId: upserted.id,
-        purpose: "EMAIL_VERIFICATION",
-        tokenHash: token("verify", normalizedEmail),
-        expiresAt: nowPlusDays(2),
-        data: { email: normalizedEmail },
-      },
-      {
-        userId: upserted.id,
-        purpose: "PASSWORD_RESET",
-        tokenHash: token("reset", normalizedEmail),
-        expiresAt: nowPlusDays(1),
-        data: { email: normalizedEmail },
-      },
-      {
-        userId: upserted.id,
-        purpose: "MAGIC_LINK_SIGNIN",
-        tokenHash: token("magic", normalizedEmail),
-        expiresAt: nowPlusDays(1),
-        data: { email: normalizedEmail, userAgent: "seed-script" },
-      },
-    ],
-  });
+  if (seedMode === "full") {
+    await prisma.userToken.createMany({
+      data: [
+        {
+          userId: upserted.id,
+          purpose: "EMAIL_VERIFICATION",
+          tokenHash: token("verify", normalizedEmail),
+          expiresAt: nowPlusDays(2),
+          data: { email: normalizedEmail },
+        },
+        {
+          userId: upserted.id,
+          purpose: "PASSWORD_RESET",
+          tokenHash: token("reset", normalizedEmail),
+          expiresAt: nowPlusDays(1),
+          data: { email: normalizedEmail },
+        },
+        {
+          userId: upserted.id,
+          purpose: "MAGIC_LINK_SIGNIN",
+          tokenHash: token("magic", normalizedEmail),
+          expiresAt: nowPlusDays(1),
+          data: { email: normalizedEmail, userAgent: "seed-script" },
+        },
+      ],
+    });
+  }
 
   await prisma.userDevice.upsert({
     where: {
@@ -381,48 +422,53 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
     },
   });
 
-  await prisma.loginAttempt.createMany({
-    data: [
-      {
-        userId: upserted.id,
-        emailTried: normalizedEmail,
-        success: status === "ACTIVE",
-        ip: "127.0.0.1",
-        userAgent: "seed-script",
-        reason: status === "ACTIVE" ? null : "seeded_non_active",
-      },
-      {
-        userId: upserted.id,
-        emailTried: normalizedEmail,
-        success: false,
-        ip: "127.0.0.1",
-        userAgent: "seed-script",
-        reason: "bad_password",
-      },
-    ],
+  if (seedMode === "full") {
+    await prisma.loginAttempt.createMany({
+      data: [
+        {
+          userId: upserted.id,
+          emailTried: normalizedEmail,
+          success: status === "ACTIVE",
+          ip: "127.0.0.1",
+          userAgent: "seed-script",
+          reason: status === "ACTIVE" ? null : "seeded_non_active",
+        },
+        {
+          userId: upserted.id,
+          emailTried: normalizedEmail,
+          success: false,
+          ip: "127.0.0.1",
+          userAgent: "seed-script",
+          reason: "bad_password",
+        },
+      ],
+    });
+  }
+
+  await prisma.userAuditEvent.create({
+    data: {
+      userId: upserted.id,
+      action: "USER_CREATED",
+      ip: "127.0.0.1",
+      userAgent: "seed-script",
+      meta: { seed: true, username: user.username },
+    },
   });
 
-  await prisma.userAuditEvent.createMany({
-    data: [
-      {
-        userId: upserted.id,
-        action: "USER_CREATED",
-        ip: "127.0.0.1",
-        userAgent: "seed-script",
-        meta: { seed: true, username: user.username },
-      },
-      {
+  if (seedMode === "full") {
+    await prisma.userAuditEvent.create({
+      data: {
         userId: upserted.id,
         action: "LOGIN_SUCCESS",
         ip: "127.0.0.1",
         userAgent: "seed-script",
         meta: { seed: true },
       },
-    ],
-  });
+    });
+  }
 
-  // Add a richer security footprint for a few users.
-  if (status === "ACTIVE" && ["kenny", "alex", "jamie"].includes(user.username)) {
+  // Add a richer security footprint for a few users (optional).
+  if (seedMode === "full" && status === "ACTIVE" && ["kenny", "alex", "jamie"].includes(user.username)) {
     await prisma.mfaFactor.deleteMany({ where: { userId: upserted.id } });
     await prisma.mfaFactor.create({
       data: {
@@ -434,8 +480,8 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
       },
     });
 
-    await prisma.webauthnCredential.deleteMany({ where: { userId: upserted.id } });
-    await prisma.webauthnCredential.create({
+    await prisma.webAuthnCredential.deleteMany({ where: { userId: upserted.id } });
+    await prisma.webAuthnCredential.create({
       data: {
         userId: upserted.id,
         credentialId: bytes("webauthn_cred", normalizedEmail),
@@ -469,6 +515,148 @@ async function seedOne(prisma: DbClient, user: SeedUser): Promise<void> {
   }
 }
 
+async function seedPropertyMvp(prisma: PrismaClient): Promise<void> {
+  const orgId = stableUuid("org", "BridgeWorksPM");
+
+  await prisma.org.upsert({
+    where: { id: orgId },
+    create: { id: orgId, name: "BridgeWorksPM" },
+    update: { name: "BridgeWorksPM" },
+  });
+
+  const allUsers = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  if (allUsers.length === 0) return;
+
+  const [developer, staffA, staffB, tenantA, tenantB] = [
+    allUsers[0],
+    allUsers[1] ?? allUsers[0],
+    allUsers[2] ?? allUsers[0],
+    allUsers[3] ?? allUsers[0],
+    allUsers[4] ?? allUsers[0],
+  ];
+
+  const members: Array<{ userId: string; role: OrgRole }> = [
+    { userId: developer.id, role: "DEVELOPER" },
+    { userId: staffA.id, role: "PROPERTY_MANAGER" },
+    { userId: staffB.id, role: "MAINTENANCE" },
+  ];
+
+  for (const member of members) {
+    await prisma.orgMember.upsert({
+      where: { orgId_userId: { orgId, userId: member.userId } },
+      create: { orgId, userId: member.userId, role: member.role },
+      update: { role: member.role },
+    });
+  }
+
+  const properties = Array.from({ length: 2 * seedScale }).map((_, index) => {
+    const cityCode = index % 2 === 0 ? "DEN" : "AUR";
+    const cityName = cityCode === "DEN" ? "Denver" : "Aurora";
+    const seq = String(Math.floor(index / 2) + 1).padStart(3, "0");
+    return {
+      siteCode: `BW-${cityCode}-${seq}`,
+      name: `BridgeWorks ${cityName} ${seq}`,
+    };
+  });
+
+  for (const property of properties) {
+    await prisma.property.upsert({
+      where: { orgId_siteCode: { orgId, siteCode: property.siteCode } },
+      create: {
+        id: stableUuid("property", `${orgId}:${property.siteCode}`),
+        orgId,
+        siteCode: property.siteCode,
+        name: property.name,
+      },
+      update: { name: property.name },
+    });
+  }
+
+  const createdProperties = await prisma.property.findMany({ where: { orgId } });
+  for (const property of createdProperties) {
+    const seq = Number(property.siteCode.slice(-3)) || 1;
+    const rentAdj = (seq - 1) * 1500;
+    const sqftAdj = (seq - 1) * 3;
+    const unitSpecs: Array<{ unitCode: string; type: UnitType; sqft: number; marketRentCents: number }> =
+      Array.from({ length: unitsPerProperty }).map((_, index) => {
+        const floor = 1 + Math.floor(index / 4);
+        const door = 1 + (index % 4);
+        const unitCode = `${floor}${String(door).padStart(2, "0")}`;
+
+        const type: UnitType =
+          door === 1 ? "STUDIO" : door === 2 || door === 3 ? "ONE_BED" : "TWO_BED";
+
+        const baseSqft = type === "STUDIO" ? 520 : type === "ONE_BED" ? 690 : 980;
+        const baseRent = type === "STUDIO" ? 155000 : type === "ONE_BED" ? 185000 : 235000;
+
+        return {
+          unitCode,
+          type,
+          sqft: baseSqft + sqftAdj + floor * 4,
+          marketRentCents: baseRent + rentAdj + floor * 1200,
+        };
+      });
+
+    for (const unit of unitSpecs) {
+      await prisma.unit.upsert({
+        where: { propertyId_unitCode: { propertyId: property.id, unitCode: unit.unitCode } },
+        create: {
+          id: stableUuid("unit", `${property.id}:${unit.unitCode}`),
+          orgId,
+          propertyId: property.id,
+          unitCode: unit.unitCode,
+          type: unit.type,
+          sqft: unit.sqft,
+          marketRentCents: unit.marketRentCents,
+        },
+        update: {
+          type: unit.type,
+          sqft: unit.sqft,
+          marketRentCents: unit.marketRentCents,
+        },
+      });
+    }
+  }
+
+  const units = await prisma.unit.findMany({ where: { orgId }, orderBy: { createdAt: "asc" } });
+  if (units.length === 0) return;
+
+  const activeTenants = await prisma.user.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+  });
+  const tenants = activeTenants.length > 0 ? activeTenants : [tenantA, tenantB];
+
+  const desiredTenancies = Math.floor(units.length * occupancyRate);
+  const tenancyCount = Math.min(units.length, desiredTenancies);
+  const tenancyPairs = Array.from({ length: tenancyCount }).map((_, index) => {
+    const startDate = new Date(2025, index % 12, 1 + (index % 20));
+    return {
+      unitId: units[index].id,
+      userId: tenants[index % tenants.length].id,
+      startDate,
+    };
+  });
+
+  for (const pair of tenancyPairs) {
+    const tenancyId = stableUuid("tenancy", `${pair.unitId}:${pair.userId}:${pair.startDate.toISOString()}`);
+    await prisma.tenancy.upsert({
+      where: { id: tenancyId },
+      create: {
+        id: tenancyId,
+        orgId,
+        unitId: pair.unitId,
+        userId: pair.userId,
+        startDate: pair.startDate,
+        endDate: null,
+      },
+      update: {
+        endDate: null,
+      },
+    });
+  }
+}
+
 async function main(): Promise<void> {
   loadEnvForSeed();
 
@@ -480,8 +668,17 @@ async function main(): Promise<void> {
     });
   }
 
+  // MVP property/unit data
+  await seedPropertyMvp(prisma);
+
   const count = await prisma.user.count();
-  console.log(`Seeded users: ${users.length} (total users in DB: ${count})`);
+  const orgCount = await prisma.org.count().catch(() => 0);
+  const propertyCount = await prisma.property.count().catch(() => 0);
+  const unitCount = await prisma.unit.count().catch(() => 0);
+  const tenancyCount = await prisma.tenancy.count().catch(() => 0);
+  console.log(
+    `Seeded users: ${users.length} (total users in DB: ${count}); orgs: ${orgCount}; properties: ${propertyCount}; units: ${unitCount}; tenancies: ${tenancyCount}`,
+  );
 }
 
 main()
