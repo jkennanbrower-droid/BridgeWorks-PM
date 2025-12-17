@@ -18,7 +18,7 @@ function getR2Client(): { client: S3Client; bucket: string; publicBaseUrl?: stri
   const accountId = requireEnv("R2_ACCOUNT_ID");
   const accessKeyId = requireEnv("R2_ACCESS_KEY_ID");
   const secretAccessKey = requireEnv("R2_SECRET_ACCESS_KEY");
-  const bucket = requireEnv("R2_BUCKET");
+  const bucket = requireEnv("R2_BUCKET_NAME");
   const publicBaseUrl = optionalEnv("R2_PUBLIC_BASE_URL")?.replace(/\/+$/, "");
 
   const client = new S3Client({

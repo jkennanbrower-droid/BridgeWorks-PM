@@ -25,8 +25,10 @@ function loadDotEnvFile(filePath) {
   }
 }
 
-loadDotEnvFile(path.join(process.cwd(), ".env.local"));
-loadDotEnvFile(path.join(process.cwd(), ".env"));
+// Load .env files from monorepo root (two levels up)
+const repoRoot = path.join(import.meta.dirname, "../..");
+loadDotEnvFile(path.join(repoRoot, ".env.local"));
+loadDotEnvFile(path.join(repoRoot, ".env"));
 
 const app = express();
 app.use(express.json());
