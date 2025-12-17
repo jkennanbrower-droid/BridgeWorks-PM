@@ -28,7 +28,7 @@ export default function Home() {
           <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
             <div>
               <p className="inline-flex items-center rounded-full border border-black/10 bg-black/[0.02] px-3 py-1 text-xs text-black/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
-                Generic Next.js starter page
+                Next.js starter page
               </p>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
                 A simple, modern home page

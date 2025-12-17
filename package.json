@@ -12,7 +12,12 @@
     "build:user": "npm --workspace apps/user run build",
     "start:user": "npm --workspace apps/user run start",
     "build:staff": "npm --workspace apps/staff run build",
-    "start:staff": "npm --workspace apps/staff run start"
+    "start:staff": "npm --workspace apps/staff run start",
+    "dev:public": "npm -w apps/public run dev",
+    "dev:staff": "npm -w apps/staff run dev",
+    "dev:user": "npm -w apps/user run dev",
+    "dev:api": "npm -w apps/api run dev",
+    "dev:all": "concurrently -k 'npm -w apps/public run dev' 'npm -w apps/staff run dev' 'npm -w apps/user run dev' 'npm -w apps/api run dev'"
   },
   "repository": {
     "type": "git",
@@ -36,5 +41,8 @@
   },
   "dependencies": {
     "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
