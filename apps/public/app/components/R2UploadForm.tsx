@@ -16,6 +16,7 @@ type UploadError = {
 
 export function R2UploadForm() {
   const [file, setFile] = useState<File | null>(null);
+  const [tokenValue, setTokenValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +41,9 @@ export function R2UploadForm() {
     try {
       const form = new FormData();
       form.set("file", file);
-      const res = await fetch("/api/r2-upload", { method: "POST", body: form });
+      const headers = new Headers();
+      if (tokenValue.trim().length > 0) headers.set("x-upload-token", tokenValue.trim());
+      const res = await fetch("/api/r2-upload", { method: "POST", body: form, headers });
       const json = (await res.json().catch(() => null)) as UploadResult | UploadError | null;
       if (!res.ok || !json || (json as UploadError).ok === false) {
         setError((json as UploadError | null)?.error ?? `Upload failed (${res.status}).`);
@@ -69,6 +72,20 @@ export function R2UploadForm() {
           <span>{file ? `${file.name} (${sizeLabel})` : "No file selected"}</span>
           <span>Max 15 MB</span>
         </div>
+
+        <label className="grid gap-2">
+          <span className="text-sm font-medium">Upload token (optional)</span>
+          <input
+            type="password"
+            value={tokenValue}
+            onChange={(e) => setTokenValue(e.currentTarget.value)}
+            placeholder="R2_UPLOAD_TOKEN"
+            className="h-11 w-full rounded-lg border border-black/15 bg-transparent px-3 text-sm text-black placeholder:text-black/40 focus:outline-none dark:border-white/15 dark:text-white dark:placeholder:text-white/40"
+          />
+          <span className="text-xs text-black/60 dark:text-white/60">
+            If `R2_UPLOAD_TOKEN` is set on the server, this must match.
+          </span>
+        </label>
 
         <button
           type="submit"
@@ -104,4 +121,3 @@ export function R2UploadForm() {
     </div>
   );
 }
-

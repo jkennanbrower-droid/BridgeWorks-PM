@@ -41,7 +41,7 @@ importers:
         specifier: ^3.879.0
         version: 3.953.0
       db:
-        specifier: workspace:*
+        specifier: file:../../packages/db
         version: link:../../packages/db
       next:
         specifier: 16.0.10
@@ -56,7 +56,7 @@ importers:
         specifier: 19.2.1
         version: 19.2.1(react@19.2.1)
       shared:
-        specifier: workspace:*
+        specifier: file:../../packages/shared
         version: link:../../packages/shared
     devDependencies:
       '@tailwindcss/postcss':

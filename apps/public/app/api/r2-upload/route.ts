@@ -30,6 +30,15 @@ function getR2Client(): { client: S3Client; bucket: string; publicBaseUrl?: stri
   return { client, bucket, publicBaseUrl };
 }
 
+function checkUploadToken(req: Request): string | null {
+  const required = process.env.R2_UPLOAD_TOKEN;
+  if (!required) return null;
+
+  const provided = req.headers.get("x-upload-token");
+  if (!provided || provided !== required) return "Unauthorized";
+  return null;
+}
+
 function sanitizeFilename(name: string): string {
   return name
     .replaceAll("\\", "_")
@@ -42,6 +51,11 @@ function sanitizeFilename(name: string): string {
 
 export async function POST(req: Request): Promise<Response> {
   try {
+    const authError = checkUploadToken(req);
+    if (authError) {
+      return Response.json({ ok: false, error: authError }, { status: 401 });
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
@@ -83,4 +97,3 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 }
-
