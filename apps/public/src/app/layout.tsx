@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BridgeWorks Public",
-  description: "BridgeWorks Public",
+  title: "Home",
+  description: "Home",
 };
 
 export default function RootLayout({
