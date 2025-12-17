@@ -1,49 +1,22 @@
-generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
-}
-
-datasource db {
-  provider = "postgresql"
-}
-
-model Org {
-  id         String      @id @default(uuid())
-  name       String
-  createdAt  DateTime    @default(now())
-  members    OrgMember[]
-  properties Property[]
+enum UserStatus {
+  ACTIVE
+  DISABLED
 }
 
 model User {
-  id        String      @id @default(uuid())
-  email     String      @unique
-  createdAt DateTime    @default(now())
-  orgs      OrgMember[]
-}
+  id     String     @id @default(uuid())
+  status UserStatus @default(ACTIVE)
 
-model OrgMember {
-  orgId     String
-  userId    String
-  role      String
+  email           String  @unique
+  emailNormalized String  @unique
+  displayName     String
+  firstName       String?
+  lastName        String?
+  avatarKey       String?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([orgId, userId])
-  @@index([userId])
-}
-
-model Property {
-  id        String   @id @default(uuid())
-  orgId     String
-  siteCode  String
-  name      String
-  createdAt DateTime @default(now())
-
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  @@unique([orgId, siteCode])
-  @@index([orgId])
+  @@index([emailNormalized])
+  @@map("User")
 }

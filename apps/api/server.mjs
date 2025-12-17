@@ -1,13 +1,32 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import dotenv from "dotenv";
 import express from "express";
 import pg from "pg";
 
-const envLocalPath = path.join(process.cwd(), ".env.local");
-if (fs.existsSync(envLocalPath)) dotenv.config({ path: envLocalPath });
-dotenv.config();
+function loadDotEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eqIndex = line.indexOf("=");
+    if (eqIndex <= 0) continue;
+    const key = line.slice(0, eqIndex).trim();
+    let value = line.slice(eqIndex + 1).trim();
+    if (!key || key in process.env) continue;
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadDotEnvFile(path.join(process.cwd(), ".env.local"));
+loadDotEnvFile(path.join(process.cwd(), ".env"));
 
 const app = express();
 app.use(express.json());
@@ -36,4 +55,3 @@ app.get("/health/db", async (req, res) => {
 
 const port = process.env.PORT || 3103;
 app.listen(port, "0.0.0.0", () => console.log("listening on", port));
-

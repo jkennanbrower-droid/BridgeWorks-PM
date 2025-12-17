@@ -22,3 +22,7 @@ Or from `packages/db`:
 - `pnpm exec prisma generate`
 - `pnpm exec prisma migrate dev --name init`
 - `pnpm exec prisma studio`
+
+### Note on app DB access
+
+The Next apps should not create their own `pg.Pool`. Use the shared pool from `db/pool` (or Prisma Client if you switch to it later).

@@ -19,5 +19,5 @@ This repo assumes you proxy via Caddy at `http://localhost:3200` to keep a singl
 
 ## Commands
 
-- `pnpm dev:all` (starts the 3 Next apps on `3100/3101/3102`)
+- `pnpm dev:all` (starts the 3 Next apps on `3100/3101/3102` and injects repo-root `.env.local`)
 - `pnpm dev:all:with-api` (also starts Express on `3103`)
