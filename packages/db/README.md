@@ -26,3 +26,11 @@ Or from `packages/db`:
 ### Note on app DB access
 
 The Next apps should not create their own `pg.Pool`. Use the shared pool from `db/pool` (or Prisma Client if you switch to it later).
+
+### Prisma Client (optional)
+
+If you want to use Prisma Client in apps/services (Prisma v7 + pg adapter), import the singleton:
+
+- `import { getPrisma } from "db/prisma";`
+
+Then call `getPrisma().user.findMany()` etc. The client uses the shared `pg` pool from `db/pool` (so SSL/env logic stays centralized).

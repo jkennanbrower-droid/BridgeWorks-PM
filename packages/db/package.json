@@ -6,15 +6,18 @@
   "exports": {
     ".": "./src/index.ts",
     "./pool": "./src/pool.ts",
+    "./prisma": "./src/prisma.ts",
     "./ready": "./src/ready.ts"
   },
   "scripts": {
+    "seed": "tsx prisma/seed.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "pg": "^8.16.3"
   },

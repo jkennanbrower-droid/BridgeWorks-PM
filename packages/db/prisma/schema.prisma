@@ -1,22 +1,444 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//
+// Existing auth/user foundation
+//
+
 enum UserStatus {
   ACTIVE
-  DISABLED
+  INVITED
+  SUSPENDED
+  DELETED
+}
+
+enum AuthProvider {
+  EMAIL_PASSWORD
+  GOOGLE
+  MICROSOFT
+  GITHUB
+  APPLE
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  EMAIL_CHANGE
+  MAGIC_LINK_SIGNIN
+}
+
+enum MfaType {
+  TOTP
+  WEBAUTHN
+}
+
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_SUSPENDED
+  USER_REACTIVATED
+
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+
+  EMAIL_VERIFICATION_SENT
+  EMAIL_VERIFIED
+  EMAIL_CHANGE_REQUESTED
+  EMAIL_CHANGED
+
+  MFA_ENABLED
+  MFA_DISABLED
+  MFA_CHALLENGE_SUCCESS
+  MFA_CHALLENGE_FAILURE
+
+  TOKEN_CREATED
+  TOKEN_REVOKED
 }
 
 model User {
-  id     String     @id @default(uuid())
-  status UserStatus @default(ACTIVE)
+  id String @id @default(uuid())
 
-  email           String  @unique
-  emailNormalized String  @unique
-  displayName     String
-  firstName       String?
-  lastName        String?
-  avatarKey       String?
+  email    String  @unique
+  username String? @unique
+
+  status          UserStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // 1:1
+  profile  UserProfile?
+  settings UserSettings?
+
+  // 1:many
+  authAccounts  AuthAccount[]
+  sessions      Session[]
+  tokens        UserToken[]
+  loginAttempts LoginAttempt[]
+  mfaFactors    MfaFactor[]
+  webauthn      WebAuthnCredential[]
+  recoveryCodes RecoveryCode[]
+  apiTokens     ApiToken[]
+  auditEvents   UserAuditEvent[]
+  devices       UserDevice[]
+
+  // Org + PM relations (added)
+  orgMemberships OrgMember[]
+  tenancies      Tenancy[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([lastLoginAt])
+}
+
+enum ApplicantStatus {
+  PRE_APPLICANT
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+model UserProfile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName   String?
+  lastName    String?
+  displayName String?
+  phone       String?
+  avatarUrl   String?
+  bio         String?
+
+  timezone String?
+  locale   String?
+
+  // Your applicant workflow (user, not yet tenant)
+  applicantStatus          ApplicantStatus?
+  applicantStatusUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserSettings {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  preferences Json?
+
+  theme          String?
+  marketingOptIn Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuthAccount {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider          AuthProvider
+  providerAccountId String?
+
+  passwordHash      String?
+  passwordUpdatedAt DateTime?
+
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastUsedAt DateTime?
+
+  @@unique([userId, provider])
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@index([provider])
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  ip        String?
+  userAgent String?
+  deviceId  String?
+
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model UserToken {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+
+  data Json?
+
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([purpose])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  emailTried String?
+  success    Boolean @default(false)
+
+  ip        String?
+  userAgent String?
+  reason    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([success])
+}
+
+model UserAuditEvent {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action    AuditAction
+  ip        String?
+  userAgent String?
+
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model UserDevice {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label      String?
+  deviceHash String
+  lastSeenAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([emailNormalized])
-  @@map("User")
+  @@unique([userId, deviceHash])
+  @@index([userId])
+  @@index([lastSeenAt])
+}
+
+model MfaFactor {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type MfaType
+  name String?
+
+  totpSecretEnc String?
+
+  enabledAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  disabledAt DateTime?
+
+  @@index([userId])
+  @@index([type])
+}
+
+model WebAuthnCredential {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  credentialId Bytes @unique
+  publicKey    Bytes
+  counter      Int   @default(0)
+
+  transports String[]
+  aaguid     String?
+
+  name       String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+  @@index([lastUsedAt])
+}
+
+model RecoveryCode {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  codeHash   String    @unique
+  createdAt  DateTime  @default(now())
+  consumedAt DateTime?
+
+  @@index([userId])
+  @@index([consumedAt])
+}
+
+model ApiToken {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  tokenHash String   @unique
+  scopes    String[]
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+//
+// Property Management scope (your roles + Property + Unit types + Tenant via Tenancy)
+//
+
+enum OrgRole {
+  DEVELOPER
+  PROPERTY_MANAGER
+  MAINTENANCE
+  CASE_WORKER
+  STAFF
+}
+
+model Org {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members    OrgMember[]
+  properties Property[]
+}
+
+model OrgMember {
+  orgId     String
+  userId    String
+  role      OrgRole
+  createdAt DateTime @default(now())
+
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, userId])
+  @@index([userId])
+  @@index([orgId])
+}
+
+model Property {
+  id       String @id @default(uuid())
+  orgId    String
+  siteCode String // your “site code”
+  name     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  units Unit[]
+
+  @@unique([orgId, siteCode])
+  @@index([orgId])
+  @@index([siteCode])
+}
+
+enum UnitType {
+  STUDIO
+  ONE_BED
+  TWO_BED
+}
+
+model Unit {
+  id         String @id @default(uuid())
+  orgId      String
+  propertyId String
+
+  unitCode String // "101", "A2"
+  type     UnitType
+
+  sqft            Int?
+  marketRentCents Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property  Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenancies Tenancy[]
+
+  @@unique([propertyId, unitCode])
+  @@index([orgId])
+  @@index([propertyId])
+  @@index([type])
+}
+
+model Tenancy {
+  id     String @id @default(uuid())
+  orgId  String
+  unitId String
+  userId String // tenant user
+
+  startDate DateTime
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([unitId])
+  @@index([userId])
+  @@index([startDate])
 }
