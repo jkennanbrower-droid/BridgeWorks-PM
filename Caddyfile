@@ -1,0 +1,38 @@
+# Caddyfile for local development
+# Run with: caddy run --config Caddyfile
+#
+# This sets up a reverse proxy at localhost:3200 that routes to your apps:
+# - http://localhost:3200       -> public app (3100)
+# - http://localhost:3200/staff -> staff app (3101)
+# - http://localhost:3200/portal -> user app (3102) [mapped from /portal]
+# - http://localhost:3200/api   -> Express API (3103)
+
+:3200 {
+	# Enable logging for debugging
+	log {
+		output stdout
+		format console
+	}
+
+	# API routes - must come first to avoid conflicts
+	handle /api/* {
+		reverse_proxy localhost:3103
+	}
+
+	# Staff portal
+	handle /staff* {
+		reverse_proxy localhost:3101
+	}
+
+	# User portal (mapped to /portal path)
+	handle /portal* {
+		# Rewrite /portal to / for the user app
+		uri strip_prefix /portal
+		reverse_proxy localhost:3102
+	}
+
+	# Public app - default/catch-all
+	handle {
+		reverse_proxy localhost:3100
+	}
+}
