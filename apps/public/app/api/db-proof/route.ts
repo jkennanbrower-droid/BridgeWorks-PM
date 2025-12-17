@@ -1,23 +1,19 @@
-﻿import { Pool } from "pg";
+import { getPool } from "db/pool";
 
 export const runtime = "nodejs";
 
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL is not set");
-
-const pool = new Pool({
-  connectionString: url,
-  ssl: url.includes("sslmode=require") || url.includes(".neon.tech")
-    ? { rejectUnauthorized: false }
-    : undefined,
-});
-
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return Response.json(
+      { ok: false },
+      { status: 404, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   const table = "bw_neon_proof";
 
   try {
-    // 1) Create table + columns (DDL)
-    await pool.query(`
+    await getPool().query(`
       CREATE TABLE IF NOT EXISTS ${table} (
         id BIGSERIAL PRIMARY KEY,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -25,14 +21,12 @@ export async function GET() {
       );
     `);
 
-    // 2) Insert a row (proof of writes)
-    const ins = await pool.query(
+    const ins = await getPool().query(
       `INSERT INTO ${table} (message) VALUES ($1) RETURNING id, created_at, message`,
       [`proof-${new Date().toISOString()}`]
     );
 
-    // 3) Read back the columns (proof of schema)
-    const cols = await pool.query(
+    const cols = await getPool().query(
       `
       SELECT column_name, data_type, is_nullable, column_default
       FROM information_schema.columns
@@ -42,8 +36,7 @@ export async function GET() {
       [table]
     );
 
-    // 4) Read last rows (proof it persists)
-    const rows = await pool.query(
+    const rows = await getPool().query(
       `SELECT id, created_at, message FROM ${table} ORDER BY id DESC LIMIT 5;`
     );
 

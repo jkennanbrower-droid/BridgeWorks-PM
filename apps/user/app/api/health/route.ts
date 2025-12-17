@@ -1,13 +1,5 @@
-﻿export const runtime = "nodejs";
+import { createHealthHandler } from "shared/health";
 
-export async function GET() {
-  return Response.json(
-    {
-      ok: true,
-      service: "user",
-      uptimeSeconds: Math.floor(process.uptime()),
-      timestamp: new Date().toISOString(),
-    },
-    { headers: { "cache-control": "no-store" } }
-  );
-}
+export const runtime = "nodejs";
+
+export const GET = createHealthHandler("user");

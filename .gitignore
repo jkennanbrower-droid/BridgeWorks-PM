@@ -1,7 +1,12 @@
 node_modules
 
+# Secrets
+.env*
+!.env.example
+!**/.env.example
+
 # Prevent mixing package managers
 yarn.lock
-pnpm-lock.yaml
+package-lock.json
 .pnp.*
 .yarn/

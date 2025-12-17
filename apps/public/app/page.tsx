@@ -1,14 +1,16 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
       <header className="border-b border-black/10 dark:border-white/10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <a
+          <Link
             href="/"
             className="text-sm font-semibold tracking-tight text-black dark:text-white"
           >
             Home
-          </a>
+          </Link>
           <nav className="flex items-center gap-6 text-sm text-black/70 dark:text-white/70">
             <a className="hover:text-black dark:hover:text-white" href="#features">
               Features
@@ -203,8 +205,8 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   className={[
                     "mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-medium",
                     tier.primary
@@ -213,7 +215,7 @@ export default function Home() {
                   ].join(" ")}
                 >
                   {tier.cta}
-                </a>
+                </button>
               </div>
             ))}
           </div>
@@ -265,18 +267,18 @@ export default function Home() {
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <a
-                  href="#"
+                <button
+                  type="button"
                   className="inline-flex h-11 items-center justify-center rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
                 >
                   Primary action
-                </a>
-                <a
-                  href="#"
+                </button>
+                <button
+                  type="button"
                   className="inline-flex h-11 items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium text-black hover:bg-black/[0.03] dark:border-white/15 dark:text-white dark:hover:bg-white/[0.06]"
                 >
                   Secondary action
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -287,15 +289,15 @@ export default function Home() {
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-6 text-sm text-black/60 dark:text-white/60 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()}.</p>
           <div className="flex gap-4">
-            <a className="hover:text-black dark:hover:text-white" href="#">
+            <button type="button" className="hover:text-black dark:hover:text-white">
               Privacy
-            </a>
-            <a className="hover:text-black dark:hover:text-white" href="#">
+            </button>
+            <button type="button" className="hover:text-black dark:hover:text-white">
               Terms
-            </a>
-            <a className="hover:text-black dark:hover:text-white" href="#">
+            </button>
+            <button type="button" className="hover:text-black dark:hover:text-white">
               Contact
-            </a>
+            </button>
           </div>
         </div>
       </footer>
