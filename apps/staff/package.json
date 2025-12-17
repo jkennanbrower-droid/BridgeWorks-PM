@@ -1,0 +1,5 @@
+﻿{
+  "name": "@bridgeworks/staff",
+  "private": true,
+  "scripts": { "build": "echo build staff (replace me)" }
+}

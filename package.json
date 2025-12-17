@@ -1,0 +1,34 @@
+{
+  "name": "bridgeworks-pm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:api": "npm --workspace apps/api run build",
+    "start:api": "npm --workspace apps/api run start",
+    "build:public": "npm --workspace apps/public run build",
+    "build:user": "npm --workspace apps/user run build",
+    "build:staff": "npm --workspace apps/staff run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jkennanbrower-droid/BridgeWorks-PM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jkennanbrower-droid/BridgeWorks-PM/issues"
+  },
+  "homepage": "https://github.com/jkennanbrower-droid/BridgeWorks-PM#readme",
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "type": "commonjs",
+  "private": "true",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
