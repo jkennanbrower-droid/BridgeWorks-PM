@@ -29,7 +29,7 @@ export function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.55)",
+        background: "rgba(2, 6, 23, 0.45)",
         display: "grid",
         placeItems: "center",
         zIndex: 40,
@@ -41,15 +41,36 @@ export function Modal({
         onMouseDown={(e) => e.stopPropagation()}
         style={{
           width: "min(720px, 96vw)",
-          borderRadius: 14,
-          border: "1px solid rgba(255,255,255,0.10)",
-          background: "rgba(17, 24, 39, 0.98)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
-          color: "rgba(255,255,255,0.92)"
+          borderRadius: 16,
+          border: "1px solid var(--border)",
+          background: "var(--card)",
+          boxShadow: "var(--shadow)",
+          color: "var(--text)"
         }}
       >
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontWeight: 650 }}>{title}</div>
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>{title}</div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "1px solid var(--border)",
+              background: "var(--card2)",
+              padding: "6px 10px",
+              borderRadius: 10
+            }}
+            aria-label="Close modal"
+          >
+            Close
+          </button>
         </div>
         <div style={{ padding: 16 }}>{children}</div>
       </div>

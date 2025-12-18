@@ -19,11 +19,14 @@ export function useToasts() {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
-  const push = useCallback((kind: ToastKind, message: string, { ttlMs = 5000 } = {}) => {
-    const id = randomId();
-    setToasts((t) => [...t, { id, kind, message }]);
-    window.setTimeout(() => dismiss(id), ttlMs);
-  }, [dismiss]);
+  const push = useCallback(
+    (kind: ToastKind, message: string, { ttlMs = 4500 } = {}) => {
+      const id = randomId();
+      setToasts((t) => [...t, { id, kind, message }]);
+      window.setTimeout(() => dismiss(id), ttlMs);
+    },
+    [dismiss]
+  );
 
   return useMemo(() => ({ toasts, push, dismiss }), [toasts, push, dismiss]);
 }
@@ -51,16 +54,17 @@ export function ToastHost({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (
             minWidth: 320,
             maxWidth: 520,
             padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 12,
+            border: "1px solid var(--border)",
             background:
               t.kind === "success"
-                ? "rgba(16, 185, 129, 0.12)"
+                ? "rgba(22, 163, 74, 0.10)"
                 : t.kind === "error"
-                  ? "rgba(239, 68, 68, 0.12)"
-                  : "rgba(59, 130, 246, 0.12)",
-            color: "rgba(255,255,255,0.92)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.35)"
+                  ? "rgba(220, 38, 38, 0.10)"
+                  : "rgba(37, 99, 235, 0.10)",
+            color: "var(--text)",
+            boxShadow: "var(--shadow)",
+            backdropFilter: "blur(6px)"
           }}
         >
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -70,10 +74,11 @@ export function ToastHost({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (
               style={{
                 border: "none",
                 background: "transparent",
-                color: "rgba(255,255,255,0.7)",
+                color: "var(--muted2)",
                 cursor: "pointer",
                 fontSize: 16,
-                lineHeight: "16px"
+                lineHeight: "16px",
+                padding: 2
               }}
               aria-label="Dismiss toast"
             >

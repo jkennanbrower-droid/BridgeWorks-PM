@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { R2UploadForm } from "./components/R2UploadForm";
-
 export default function Home() {
   return (
     <div className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
@@ -83,7 +81,6 @@ export default function Home() {
                       Keep this area for release notes or onboarding tips.
                     </p>
                   </div>
-                  <R2UploadForm />
                   <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
                     <p className="text-sm font-medium">Quick actions</p>
                     <div className="mt-3 flex flex-wrap gap-2">

@@ -1,6 +1,6 @@
 .app {
   width: min(1200px, 96vw);
-  margin: 20px auto;
+  margin: 18px auto 32px;
   display: grid;
   gap: 14px;
 }
@@ -12,17 +12,19 @@
   gap: 12px;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(17, 24, 39, 0.65);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
 .title {
   font-weight: 750;
-  letter-spacing: 0.2px;
+  letter-spacing: -0.2px;
+  font-size: 14px;
 }
 
 .subtitle {
-  opacity: 0.7;
+  color: var(--muted2);
   font-size: 13px;
 }
 
@@ -42,8 +44,9 @@
 .card {
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(17, 24, 39, 0.65);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
 .cardTitle {
@@ -52,7 +55,7 @@
 }
 
 .hint {
-  opacity: 0.7;
+  color: var(--muted2);
   font-size: 13px;
 }
 
@@ -71,16 +74,7 @@
 }
 
 .field span {
-  opacity: 0.75;
-}
-
-input,
-select {
-  padding: 10px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.18);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
 }
 
 .table {
@@ -91,15 +85,15 @@ select {
 
 .table th {
   text-align: left;
-  opacity: 0.8;
   font-weight: 650;
   padding: 10px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .table td {
   padding: 10px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
@@ -110,7 +104,7 @@ select {
 
 .err {
   margin-top: 6px;
-  color: rgba(248, 113, 113, 0.95);
+  color: var(--danger);
   white-space: pre-wrap;
 }
 
@@ -120,22 +114,39 @@ select {
   gap: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   font-size: 12px;
 }
 
 .pill.ok {
-  background: rgba(16, 185, 129, 0.12);
-  color: rgba(52, 211, 153, 0.95);
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
 }
 
 .pill.bad {
-  background: rgba(239, 68, 68, 0.12);
-  color: rgba(248, 113, 113, 0.95);
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
 }
 
 .pill.warn {
-  background: rgba(245, 158, 11, 0.12);
-  color: rgba(251, 191, 36, 0.95);
+  background: rgba(217, 119, 6, 0.12);
+  color: var(--warn);
 }
 
+.btnPrimary {
+  background: var(--primary);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: white;
+}
+.btnPrimary:hover {
+  background: var(--primary-hover);
+  border-color: rgba(29, 78, 216, 0.5);
+}
+.btnDanger {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--danger);
+}
+.btnDanger:hover {
+  background: rgba(220, 38, 38, 0.12);
+}

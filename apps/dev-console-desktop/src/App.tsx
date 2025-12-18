@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import type { AppConfig, HealthRow, RenderSelection, RenderService, RenderServiceStatus } from "./types";
 import { formatUnknownError, requireBw } from "./bw";
@@ -6,6 +6,9 @@ import { Modal } from "./ui/modal";
 import { ToastHost, useToasts } from "./ui/toasts";
 
 type ServiceKey = keyof RenderSelection;
+
+const REFRESH_OPTIONS_SEC = [5, 15, 30, 60, 90, 120] as const;
+type RefreshEverySec = (typeof REFRESH_OPTIONS_SEC)[number];
 
 function fmtTime(iso?: string) {
   if (!iso) return "";
@@ -21,9 +24,9 @@ function statusPill({ suspended }: { suspended: boolean }) {
         padding: "2px 8px",
         borderRadius: 999,
         fontSize: 12,
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: suspended ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
-        color: suspended ? "rgba(251, 191, 36, 0.95)" : "rgba(52, 211, 153, 0.95)"
+        border: "1px solid var(--border)",
+        background: suspended ? "rgba(217, 119, 6, 0.10)" : "rgba(22, 163, 74, 0.10)",
+        color: suspended ? "var(--warn)" : "var(--success)"
       }}
     >
       {suspended ? "Suspended" : "Active"}
@@ -45,6 +48,9 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [loadingHealth, setLoadingHealth] = useState(false);
+  const [backgroundErr, setBackgroundErr] = useState<string | null>(null);
+  const pollInFlight = useRef(false);
+  const [refreshEverySec, setRefreshEverySec] = useState<RefreshEverySec>(15);
 
   const [services, setServices] = useState<RenderService[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
@@ -59,19 +65,23 @@ export default function App() {
   const selection = config?.render.selection;
 
   const selectedServiceIds = useMemo(() => {
-    const ids = Object.values(selection || {}).filter(Boolean);
-    return Array.from(new Set(ids));
+    const sel = selection || ({} as RenderSelection);
+    const ordered = [sel.public, sel.user, sel.staff, sel.api].filter(Boolean);
+    return Array.from(new Set(ordered));
   }, [selection]);
 
-  async function refreshHealth() {
+  async function refreshHealth({ showToastOnError }: { showToastOnError: boolean }) {
     setLoadingHealth(true);
+    setBackgroundErr(null);
     try {
       const bw = requireBw();
       const res = await bw.health.checkAll();
       setConfig(res.config);
       setRows(res.results);
     } catch (e: unknown) {
-      push("error", formatUnknownError(e));
+      const msg = formatUnknownError(e);
+      setBackgroundErr(msg);
+      if (showToastOnError) push("error", msg);
       setRows([]);
     } finally {
       setLoadingHealth(false);
@@ -87,6 +97,7 @@ export default function App() {
           try {
             const s = await bw.render.serviceStatus({ serviceId });
             return [serviceId, s] as const;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           } catch (e) {
             return [
               serviceId,
@@ -108,23 +119,41 @@ export default function App() {
         return next;
       });
     } catch (e) {
-      push("error", formatUnknownError(e));
+      // Background status refresh errors should not spam toasts.
+      setBackgroundErr(formatUnknownError(e));
     }
   }
 
-  async function refreshAll() {
-    await refreshHealth();
+  async function manualRefresh() {
+    await refreshHealth({ showToastOnError: true });
+    if (config?.render.apiKeyConfigured) await refreshStatuses(selectedServiceIds);
   }
 
   useEffect(() => {
-    refreshAll();
+    // Initial load (avoid React StrictMode effect spam causing repeated calls).
+    if (pollInFlight.current) return;
+    pollInFlight.current = true;
+    refreshHealth({ showToastOnError: true }).finally(() => {
+      pollInFlight.current = false;
+    });
   }, []);
 
   useEffect(() => {
-    if (!config?.render.apiKeyConfigured) return;
-    refreshStatuses(selectedServiceIds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.render.apiKeyConfigured, selectedServiceIds.join("|")]);
+    const intervalMs = refreshEverySec * 1000;
+    const tick = async () => {
+      if (pollInFlight.current) return;
+      pollInFlight.current = true;
+      try {
+        await refreshHealth({ showToastOnError: false });
+        if (config?.render.apiKeyConfigured) await refreshStatuses(selectedServiceIds);
+      } finally {
+        pollInFlight.current = false;
+      }
+    };
+
+    const id = window.setInterval(tick, intervalMs);
+    return () => window.clearInterval(id);
+  }, [config?.render.apiKeyConfigured, selectedServiceIds, refreshEverySec]);
 
   async function setEnv(env: AppConfig["env"]) {
     try {
@@ -132,7 +161,8 @@ export default function App() {
       const next = await bw.config.set({ env });
       setConfig(next);
       push("success", `Environment set to ${env}.`);
-      await refreshHealth();
+      await refreshHealth({ showToastOnError: true });
+      if (next.render.apiKeyConfigured) await refreshStatuses(selectedServiceIds);
     } catch (e) {
       push("error", formatUnknownError(e));
     }
@@ -149,12 +179,14 @@ export default function App() {
     }
   }
 
-  async function saveSelection(nextSelection: Partial<RenderSelection>) {
+  async function saveSelection(serviceKey: ServiceKey, serviceId: string) {
     try {
       const bw = requireBw();
-      const next = await bw.config.set({ render: { selection: nextSelection } });
+      const selectionPatch = { [serviceKey]: serviceId } as Partial<RenderSelection>;
+      const next = await bw.config.set({ render: { selection: selectionPatch } });
       setConfig(next);
       push("success", "Saved Render service selection.");
+      if (serviceId) await refreshStatuses([serviceId]);
     } catch (e) {
       push("error", formatUnknownError(e));
     }
@@ -257,6 +289,26 @@ export default function App() {
             </select>
           </label>
 
+          <label className="field">
+            <span>Auto refresh</span>
+            <select
+              value={refreshEverySec}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                if (REFRESH_OPTIONS_SEC.includes(next as RefreshEverySec)) {
+                  setRefreshEverySec(next as RefreshEverySec);
+                }
+              }}
+              disabled={!config}
+            >
+              {REFRESH_OPTIONS_SEC.map((s) => (
+                <option key={s} value={s}>
+                  Every {s}s
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
             <input
               type="checkbox"
@@ -267,7 +319,11 @@ export default function App() {
             <span>Debug</span>
           </label>
 
-          <button onClick={refreshAll} disabled={loadingHealth}>
+          <button
+            className="btnPrimary"
+            onClick={manualRefresh}
+            disabled={loadingHealth}
+          >
             {loadingHealth ? "Refreshing…" : "Refresh"}
           </button>
         </div>
@@ -287,7 +343,11 @@ export default function App() {
               )}
             </div>
 
-            <button onClick={loadRenderServices} disabled={!config?.render.apiKeyConfigured || loadingServices}>
+            <button
+              className="btnPrimary"
+              onClick={loadRenderServices}
+              disabled={!config?.render.apiKeyConfigured || loadingServices}
+            >
               {loadingServices ? "Loading services…" : "Fetch services from Render"}
             </button>
 
@@ -305,7 +365,7 @@ export default function App() {
                 <span style={{ textTransform: "capitalize" }}>{k}</span>
                 <select
                   value={(selection?.[k] || "") as string}
-                  onChange={(e) => saveSelection({ [k]: e.target.value } as any)}
+                  onChange={(e) => saveSelection(k, e.target.value)}
                   disabled={!config?.render.apiKeyConfigured}
                 >
                   <option value="">(not selected)</option>
@@ -331,6 +391,21 @@ export default function App() {
           <div className="hint">
             Health checks run from the Electron main process against the currently selected environment base URLs.
           </div>
+          {backgroundErr ? (
+            <div
+              style={{
+                marginTop: 10,
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "rgba(220, 38, 38, 0.06)",
+                color: "var(--danger)",
+                fontSize: 13
+              }}
+            >
+              {backgroundErr}
+            </div>
+          ) : null}
 
           <div style={{ marginTop: 10 }}>
             <table className="table">
@@ -352,7 +427,9 @@ export default function App() {
                   const serviceId = serviceKey ? selection?.[serviceKey] || "" : "";
                   const renderStatus = serviceId ? statusById[serviceId] : undefined;
 
-                  const canRender = Boolean(config?.render.apiKeyConfigured && serviceId);
+                  const hasKey = Boolean(config?.render.apiKeyConfigured);
+                  const hasServiceSelected = Boolean(serviceId);
+                  const canRender = Boolean(hasKey && hasServiceSelected);
                   const busy =
                     busyKey === `deploy:${serviceId}` ||
                     busyKey === `suspend:${serviceId}` ||
@@ -376,14 +453,10 @@ export default function App() {
                       <td>
                         {!serviceKey ? (
                           <span style={{ opacity: 0.6 }}>n/a</span>
-                        ) : !config?.render.apiKeyConfigured ? (
-                          <span style={{ opacity: 0.7 }}>Configure API key</span>
-                        ) : !serviceId ? (
-                          <span style={{ opacity: 0.7 }}>Select service</span>
                         ) : (
                           <div style={{ display: "grid", gap: 6 }}>
                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                              {renderStatus ? statusPill({ suspended: Boolean(renderStatus.suspended) }) : null}
+                              {renderStatus && canRender ? statusPill({ suspended: Boolean(renderStatus.suspended) }) : null}
                               <span style={{ opacity: 0.75, fontSize: 12 }}>
                                 Last deploy: {renderStatus?.lastDeployAt ? fmtTime(renderStatus.lastDeployAt) : "—"}
                               </span>
@@ -394,9 +467,9 @@ export default function App() {
                                 {busyKey === `deploy:${serviceId}` ? "Deploying…" : "Deploy"}
                               </button>
                               <button
+                                className="btnDanger"
                                 disabled={!canRender || busy}
                                 onClick={() => openSuspend(serviceId, label)}
-                                style={{ borderColor: "rgba(251, 191, 36, 0.35)" }}
                               >
                                 {busyKey === `suspend:${serviceId}` ? "Pausing…" : "Pause"}
                               </button>
@@ -404,6 +477,12 @@ export default function App() {
                                 {busyKey === `resume:${serviceId}` ? "Resuming…" : "Resume"}
                               </button>
                             </div>
+
+                            {!hasKey ? (
+                              <div className="hint">Configure the Render API key first.</div>
+                            ) : !hasServiceSelected ? (
+                              <div className="hint">Select a Render service for this row.</div>
+                            ) : null}
                           </div>
                         )}
                       </td>
@@ -442,9 +521,9 @@ export default function App() {
               Cancel
             </button>
             <button
+              className="btnDanger"
               onClick={confirmSuspend}
               disabled={suspendTyped !== "SUSPEND" || Boolean(busyKey)}
-              style={{ borderColor: "rgba(239, 68, 68, 0.55)" }}
             >
               {busyKey?.startsWith("suspend:") ? "Pausing…" : "Pause"}
             </button>
@@ -454,4 +533,3 @@ export default function App() {
     </div>
   );
 }
-
