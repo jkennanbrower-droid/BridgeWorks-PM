@@ -28,8 +28,9 @@ function loadDotEnvFile(filePath: string): void {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-loadDotEnvFile(path.join(here, ".env.local"));
-loadDotEnvFile(path.join(here, ".env"));
+const repoRoot = path.join(here, "../..");
+loadDotEnvFile(path.join(repoRoot, ".env.local"));
+loadDotEnvFile(path.join(repoRoot, ".env"));
 
 const pooledUrl = process.env.DATABASE_URL;
 
