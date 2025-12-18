@@ -18,8 +18,8 @@ function createWindow() {
   console.log("PRELOAD EXISTS =", fs.existsSync(preloadPath));
 
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1100,
+    height: 700,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

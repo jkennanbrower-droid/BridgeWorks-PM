@@ -54,3 +54,16 @@ export type RenderServiceStatus = RenderService & {
   lastDeployAt?: string;
 };
 
+export type AppMeta = {
+  version: string;
+  commit: string;
+};
+
+export type AuditEntry = {
+  ts: string;
+  requestId?: string;
+  action: string;
+  serviceId?: string;
+  ok: boolean;
+  error?: string;
+};

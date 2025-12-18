@@ -6,6 +6,9 @@ function invoke(channel, payload) {
 
 try {
   const api = {
+    app: {
+      meta: () => invoke("app:meta")
+    },
     config: {
       get: () => invoke("config:get"),
       set: (next) => invoke("config:set", next)
@@ -20,6 +23,10 @@ try {
       deploy: (args) => invoke("render:deploy", args),
       suspend: (args) => invoke("render:suspend", args),
       resume: (args) => invoke("render:resume", args)
+    },
+    audit: {
+      path: () => invoke("audit:path"),
+      recent: (args) => invoke("audit:recent", args)
     }
   };
 
@@ -40,4 +47,3 @@ try {
 }
 
 console.log("✅ PRELOAD LOADED");
-

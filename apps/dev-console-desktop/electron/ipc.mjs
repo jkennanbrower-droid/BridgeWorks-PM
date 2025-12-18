@@ -1,7 +1,7 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import { getConfigInternal, getConfigPublic, setConfigPartial } from "./lib/config.mjs";
 import { hasRenderApiKey, getRenderApiKey } from "./lib/secrets.mjs";
-import { appendAudit } from "./lib/audit.mjs";
+import { appendAudit, getAuditPath, readRecentAudit } from "./lib/audit.mjs";
 import { checkAll as checkAllHealth } from "./lib/health.mjs";
 import {
   deployService,
@@ -11,9 +11,14 @@ import {
   getService,
   listDeploys
 } from "./lib/renderClient.mjs";
+import childProcess from "node:child_process";
 
 const ACTION_COOLDOWN_MS = 3_000;
 const lastActionAt = new Map();
+
+function makeRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`;
+}
 
 function rateLimit(action, serviceId) {
   const key = `${action}:${serviceId || ""}`;
@@ -45,9 +50,10 @@ function requireRenderApiKey() {
   return getRenderApiKey();
 }
 
-async function audited({ action, serviceId, ok, error }) {
+async function audited({ requestId, action, serviceId, ok, error }) {
   const entry = {
     ts: new Date().toISOString(),
+    requestId: requestId || "",
     action,
     serviceId: serviceId || "",
     ok: Boolean(ok),
@@ -60,7 +66,35 @@ async function audited({ action, serviceId, ok, error }) {
   }
 }
 
+function tryGetGitCommit() {
+  try {
+    const out = childProcess.execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    return String(out).trim();
+  } catch {
+    return "";
+  }
+}
+
 export function registerIpcHandlers() {
+  ipcMain.handle("app:meta", async () => {
+    return {
+      version: app.getVersion(),
+      commit: process.env.GIT_COMMIT || tryGetGitCommit()
+    };
+  });
+
+  ipcMain.handle("audit:path", async () => {
+    return { path: getAuditPath() };
+  });
+
+  ipcMain.handle("audit:recent", async (_evt, { limit = 10 } = {}) => {
+    const entries = await readRecentAudit({ limit });
+    return { entries };
+  });
+
   ipcMain.handle("config:get", async () => {
     return getConfigPublic({ renderApiKeyConfigured: hasRenderApiKey() });
   });
@@ -111,42 +145,44 @@ export function registerIpcHandlers() {
   });
 
   ipcMain.handle("render:deploy", async (_evt, { serviceId, clearCache = false }) => {
+    const requestId = makeRequestId();
     rateLimit("deploy", serviceId);
     const apiKey = requireRenderApiKey();
     try {
       const res = await deployService(apiKey, { serviceId, clearCache });
-      await audited({ action: "render.deploy", serviceId, ok: true });
-      return res;
+      await audited({ requestId, action: "render.deploy", serviceId, ok: true });
+      return { requestId, data: res };
     } catch (e) {
-      await audited({ action: "render.deploy", serviceId, ok: false, error: e });
-      throw e;
+      await audited({ requestId, action: "render.deploy", serviceId, ok: false, error: e });
+      throw new Error(`[${requestId}] ${String(e?.message || e)}`);
     }
   });
 
   ipcMain.handle("render:suspend", async (_evt, { serviceId }) => {
+    const requestId = makeRequestId();
     rateLimit("suspend", serviceId);
     const apiKey = requireRenderApiKey();
     try {
       const res = await suspendService(apiKey, { serviceId });
-      await audited({ action: "render.suspend", serviceId, ok: true });
-      return res;
+      await audited({ requestId, action: "render.suspend", serviceId, ok: true });
+      return { requestId, data: res };
     } catch (e) {
-      await audited({ action: "render.suspend", serviceId, ok: false, error: e });
-      throw e;
+      await audited({ requestId, action: "render.suspend", serviceId, ok: false, error: e });
+      throw new Error(`[${requestId}] ${String(e?.message || e)}`);
     }
   });
 
   ipcMain.handle("render:resume", async (_evt, { serviceId }) => {
+    const requestId = makeRequestId();
     rateLimit("resume", serviceId);
     const apiKey = requireRenderApiKey();
     try {
       const res = await resumeService(apiKey, { serviceId });
-      await audited({ action: "render.resume", serviceId, ok: true });
-      return res;
+      await audited({ requestId, action: "render.resume", serviceId, ok: true });
+      return { requestId, data: res };
     } catch (e) {
-      await audited({ action: "render.resume", serviceId, ok: false, error: e });
-      throw e;
+      await audited({ requestId, action: "render.resume", serviceId, ok: false, error: e });
+      throw new Error(`[${requestId}] ${String(e?.message || e)}`);
     }
   });
 }
-
