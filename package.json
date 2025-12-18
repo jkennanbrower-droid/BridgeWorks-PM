@@ -13,7 +13,7 @@
     "start:user": "pnpm -C apps/user run start",
     "build:staff": "pnpm -C apps/staff run build",
     "start:staff": "pnpm -C apps/staff run start",
-    "render:build:public": "corepack pnpm install --frozen-lockfile && corepack pnpm -C apps/public run build",
+    "render:build:public": "corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/public run build",
     "render:start:public": "corepack pnpm -C apps/public run start",
     "dev:public": "dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100",
     "dev:staff": "dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101",

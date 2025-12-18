@@ -145,4 +145,6 @@ This repo uses `pnpm` (there is no `package-lock.json`), so `npm ci` will fail o
 - **Build Command**: `npm run render:build:public`
 - **Start Command**: `npm run render:start:public`
 
+Note: the build script forces installing `devDependencies` (`pnpm install --prod=false`) because Next/Tailwind build tooling runs at build time.
+
 An example blueprint is included at `render.yaml`.
