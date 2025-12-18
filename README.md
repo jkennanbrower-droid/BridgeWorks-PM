@@ -147,4 +147,9 @@ This repo uses `pnpm` (there is no `package-lock.json`), so `npm ci` will fail o
 
 Note: the build script forces installing `devDependencies` (`pnpm install --prod=false`) because Next/Tailwind build tooling runs at build time.
 
+If the site renders but looks completely unstyled, check the browser network tab for failed requests to `/_next/static/...` (CSS/JS). This usually means you're serving the app under a path prefix (or a proxy rewrite is breaking `/_next/*`).
+
+- **Serving under a sub-path**: set `NEXT_PUBLIC_BASE_PATH` (example: `/portal`) and redeploy so assets load from `/portal/_next/...`.
+- **Using Cloudflare proxy**: purge Cloudflare cache (or at least `/_next/static/*`) after a failed deploy; Cloudflare can cache a 404 for a chunk URL and keep serving “unstyled” pages until the cache is cleared.
+
 An example blueprint is included at `render.yaml`.

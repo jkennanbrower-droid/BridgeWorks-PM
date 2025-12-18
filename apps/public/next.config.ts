@@ -31,8 +31,19 @@ const repoRoot = path.join(here, "../..");
 loadDotEnvFile(path.join(repoRoot, ".env.local"));
 loadDotEnvFile(path.join(repoRoot, ".env"));
 
+function normalizeBasePath(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "/") return undefined;
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const withoutTrailingSlash = withLeadingSlash.replace(/\/+$/, "");
+  return withoutTrailingSlash || undefined;
+}
+
+const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
 const nextConfig: NextConfig = {
   transpilePackages: ["db", "shared"],
+  ...(basePath ? { basePath } : {}),
 };
 
 export default nextConfig;
