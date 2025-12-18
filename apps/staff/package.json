@@ -9,10 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "db": "file:../../packages/db",
     "next": "16.0.10",
     "pg": "^8.16.3",
     "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "react-dom": "19.2.1",
+    "shared": "file:../../packages/shared"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
