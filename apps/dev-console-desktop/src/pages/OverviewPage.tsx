@@ -50,11 +50,11 @@ export function OverviewPage({ model }: { model: DevConsoleModel }) {
                 </div>
                 <div className="kvRow">
                   <div className="muted">Region</div>
-                  <div className="monoSmall">-</div>
+                  <div className="monoSmall">{renderStatus?.region || "-"}</div>
                 </div>
                 <div className="kvRow">
                   <div className="muted">Version</div>
-                  <div className="monoSmall">-</div>
+                  <div className="monoSmall">{renderStatus?.version || "-"}</div>
                 </div>
               </div>
             </div>
@@ -98,4 +98,3 @@ export function OverviewPage({ model }: { model: DevConsoleModel }) {
 function titleCase(key: ServiceKey) {
   return key[0].toUpperCase() + key.slice(1);
 }
-

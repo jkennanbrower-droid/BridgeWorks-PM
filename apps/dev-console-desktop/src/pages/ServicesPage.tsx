@@ -67,13 +67,21 @@ export function ServicesPage({
 
                 const canAct = Boolean(config?.render.apiKeyConfigured && serviceId);
 
+                const currentState = renderStatus?.suspended
+                  ? "Down"
+                  : row
+                    ? row.ok
+                      ? "Deployed"
+                      : "Down"
+                    : "Unknown";
+
                 return (
                   <tr key={k}>
                     <td>
                       <div className="cellTitle">{titleCase(k)}</div>
                       <div className="monoSmall muted">{serviceId || "Not mapped"}</div>
                     </td>
-                    <td>{renderStatus ? (renderStatus.suspended ? "Suspended" : "Running") : "-"}</td>
+                    <td>{currentState}</td>
                     <td>
                       <span className={`statusChip status-${status.tone}`}>
                         <Dot tone={status.tone} />
@@ -113,4 +121,3 @@ export function ServicesPage({
 function titleCase(key: ServiceKey) {
   return key[0].toUpperCase() + key.slice(1);
 }
-

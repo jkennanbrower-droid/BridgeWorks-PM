@@ -43,16 +43,15 @@ export async function checkAll({ envUrls, adminToken }) {
 
   const adminHeaders = adminToken ? { "X-Admin-Token": adminToken } : {};
   const targets = [
-    { name: "Public (landing) /api/health", url: `${cfg.publicBaseUrl}/api/health` },
-    { name: "User /api/health", url: `${cfg.userBaseUrl}/api/health` },
-    { name: "Staff /api/health", url: `${cfg.staffBaseUrl}/api/health` },
-    { name: "API /health", url: `${cfg.apiBaseUrl}/health` },
-    { name: "API /ready (DB)", url: `${cfg.apiBaseUrl}/ready` },
-    { name: "API /db-health", url: `${cfg.apiBaseUrl}/db-health` }
+    { name: "Public", url: `${cfg.publicBaseUrl}/api/health` },
+    { name: "User", url: `${cfg.userBaseUrl}/api/health` },
+    { name: "Staff", url: `${cfg.staffBaseUrl}/api/health` },
+    { name: "API Health", url: `${cfg.apiBaseUrl}/health` },
+    { name: "API Ready", url: `${cfg.apiBaseUrl}/ready` },
+    { name: "API DB", url: `${cfg.apiBaseUrl}/db-health` }
   ];
 
   const results = [];
   for (const t of targets) results.push(await checkUrl(t.name, t.url, adminHeaders));
   return results;
 }
-

@@ -32,11 +32,18 @@ function rateLimit(action, serviceId) {
 
 function normalizeService(item) {
   const s = item?.service ?? item ?? {};
+  const suspendedRaw = s.suspended;
+  const suspended =
+    typeof suspendedRaw === "boolean"
+      ? suspendedRaw
+      : typeof suspendedRaw === "string"
+        ? suspendedRaw.toLowerCase() === "suspended" || suspendedRaw.toLowerCase() === "true"
+        : false;
   return {
     id: String(s.id || ""),
     name: String(s.name || ""),
     type: String(s.type || ""),
-    suspended: Boolean(s.suspended || false),
+    suspended,
     updatedAt: s.updatedAt ? String(s.updatedAt) : ""
   };
 }
@@ -128,19 +135,35 @@ export function registerIpcHandlers() {
     const raw = await getService(apiKey, serviceId);
     const service = normalizeService(raw);
 
+    const region =
+      String(raw?.service?.region || raw?.region || raw?.serviceDetails?.region || raw?.details?.region || "").trim();
+
     let lastDeployAt = "";
+    let version = "";
     try {
       const deploys = await listDeploys(apiKey, serviceId, { limit: 1 });
       const d0 = Array.isArray(deploys) ? deploys[0] : null;
       // Render deploy objects vary slightly; try a few common fields.
       lastDeployAt = String(d0?.createdAt || d0?.deploy?.createdAt || "");
+      const commit =
+        d0?.commit?.id ||
+        d0?.commit?.sha ||
+        d0?.commitId ||
+        d0?.commit ||
+        d0?.deploy?.commit?.id ||
+        d0?.deploy?.commitId ||
+        "";
+      version = String(commit || "");
+      if (version.length > 12) version = version.slice(0, 12);
     } catch {
       // ignore deploy fetch issues for status view
     }
 
     return {
       ...service,
-      lastDeployAt
+      lastDeployAt,
+      region,
+      version
     };
   });
 

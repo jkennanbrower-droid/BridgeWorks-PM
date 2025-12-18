@@ -52,6 +52,8 @@ export type RenderService = {
 
 export type RenderServiceStatus = RenderService & {
   lastDeployAt?: string;
+  region?: string;
+  version?: string;
 };
 
 export type AppMeta = {

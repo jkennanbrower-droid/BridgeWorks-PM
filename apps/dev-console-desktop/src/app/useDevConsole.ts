@@ -6,10 +6,20 @@ import { nowHHMMSS } from "./utils";
 export type ServiceKey = keyof RenderSelection;
 
 export function healthNameForService(key: ServiceKey) {
-  if (key === "public") return "Public (landing) /api/health";
-  if (key === "user") return "User /api/health";
-  if (key === "staff") return "Staff /api/health";
-  return "API /health";
+  if (key === "public") return "Public";
+  if (key === "user") return "User";
+  if (key === "staff") return "Staff";
+  return "API Health";
+}
+
+function normalizeHealthName(name: string) {
+  if (name === "Public (landing) /api/health") return "Public";
+  if (name === "User /api/health") return "User";
+  if (name === "Staff /api/health") return "Staff";
+  if (name === "API /health") return "API Health";
+  if (name === "API /ready (DB)") return "API Ready";
+  if (name === "API /db-health") return "API DB";
+  return name;
 }
 
 export function useDevConsole() {
@@ -60,12 +70,13 @@ export function useDevConsole() {
     try {
       const res = await bw.health.checkAll();
       setConfig(res.config);
-      setHealthRows(res.results);
+      const normalized = res.results.map((r) => ({ ...r, name: normalizeHealthName(r.name) }));
+      setHealthRows(normalized);
       setLastRefreshAt(nowHHMMSS());
 
       setLatencyHistory((prev) => {
         const next = { ...prev };
-        for (const row of res.results) {
+        for (const row of normalized) {
           const arr = next[row.name] ? [...next[row.name]] : [];
           arr.push(Number(row.ms) || 0);
           next[row.name] = arr.slice(-30);
