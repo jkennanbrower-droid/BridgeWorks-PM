@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 
@@ -19,7 +20,7 @@ function loadDotEnvFile(filePath) {
     let value = line.slice(eqIndex + 1).trim();
     if (!key || key in process.env) continue;
     if (
-      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
@@ -38,21 +39,6 @@ app.use(express.json());
 
 function noStore(res) {
   res.setHeader("cache-control", "no-store");
-}
-
-let sharedPool;
-function getPool() {
-  if (sharedPool) return sharedPool;
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) return null;
-  sharedPool = new pg.Pool({
-    connectionString,
-    ssl:
-      connectionString.includes("sslmode=require") || connectionString.includes(".neon.tech")
-        ? { rejectUnauthorized: false }
-        : undefined,
-  });
-  return sharedPool;
 }
 
 function parseCsv(value) {
@@ -75,245 +61,194 @@ app.use((req, res, next) => {
   next();
 });
 
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set");
+
+const pool = new pg.Pool({
+  connectionString,
+  ssl:
+    connectionString.includes("sslmode=require") || connectionString.includes(".neon.tech")
+      ? { rejectUnauthorized: false }
+      : undefined,
+});
+
 function addAlias(pathA, pathB, handler) {
   app.all(pathA, handler);
   app.all(pathB, handler);
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function getBuildSha() {
+  return process.env.BUILD_SHA ?? process.env.GIT_SHA ?? process.env.RENDER_GIT_COMMIT;
 }
 
-function maskSecret(value) {
-  const s = String(value || "");
-  if (!s) return "(not set)";
-  if (s.length <= 8) return "********";
-  return `${s.slice(0, 3)}…${s.slice(-3)}`;
+function getSelfBaseUrl(req) {
+  const protoHeader = req.headers["x-forwarded-proto"];
+  const proto = (Array.isArray(protoHeader) ? protoHeader[0] : protoHeader)
+    ?.split(",")[0]
+    ?.trim();
+  const hostHeader = req.headers["x-forwarded-host"] ?? req.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  return `${proto || req.protocol || "http"}://${host}`;
 }
 
+async function fetchWithTimeout(url, { timeoutMs = 4000, headers } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = performance.now();
+  try {
+    const res = await fetch(url, { signal: controller.signal, headers });
+    const latencyMs = performance.now() - started;
+    return { res, latencyMs };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkUrl(name, url, pathChecked, timeoutMs) {
+  try {
+    const { res, latencyMs } = await fetchWithTimeout(url, { timeoutMs });
+    const ok = res.ok;
+    let json = null;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      json = await res.json().catch(() => null);
+    }
+    return {
+      name,
+      url,
+      pathChecked,
+      ok,
+      status: res.status,
+      latencyMs: Math.round(latencyMs),
+      json,
+    };
+  } catch (e) {
+    return {
+      name,
+      url,
+      pathChecked,
+      ok: false,
+      status: 0,
+      latencyMs: null,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+async function checkServiceReachable(name, baseUrl) {
+  const base = baseUrl.replace(/\/+$/, "");
+  const health = await checkUrl(name, `${base}/api/health`, "/api/health", 4000);
+  if (health.status !== 404) return health;
+  return await checkUrl(name, `${base}/`, "/", 4000);
+}
+
+const staticDir = path.join(import.meta.dirname, "static");
+app.use("/static", express.static(staticDir));
+
+// Ops console (static app)
 app.get("/", (req, res) => {
   noStore(res);
-  const hasDb = Boolean(process.env.DATABASE_URL);
-  const hasR2 =
-    Boolean(process.env.R2_ACCOUNT_ID) &&
-    Boolean(process.env.R2_ACCESS_KEY_ID) &&
-    Boolean(process.env.R2_SECRET_ACCESS_KEY) &&
-    Boolean(process.env.R2_BUCKET_NAME);
-
-  const cors = allowedOrigins.length ? allowedOrigins.map(escapeHtml).join("<br/>") : "(allow all)";
-
-  res.type("html").send(`<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BridgeWorks API</title>
-    <style>
-      :root { color-scheme: light dark; }
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; }
-      .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
-      header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-      h1 { font-size: 22px; margin: 0; }
-      .muted { opacity: .7; font-size: 13px; }
-      .grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
-      @media (min-width: 860px) { .grid { grid-template-columns: 1.3fr .7fr; } }
-      .card { border: 1px solid color-mix(in oklab, CanvasText 12%, transparent); border-radius: 14px; padding: 16px; background: color-mix(in oklab, Canvas 92%, CanvasText 8%); }
-      .card h2 { font-size: 14px; margin: 0 0 10px; letter-spacing: .01em; }
-      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
-      a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-      .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid color-mix(in oklab, CanvasText 10%, transparent); }
-      .row:first-of-type { border-top: 0; }
-      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in oklab, CanvasText 12%, transparent); }
-      .dot { width: 8px; height: 8px; border-radius: 99px; background: #999; }
-      .ok { background: #23c55e; }
-      .bad { background: #ef4444; }
-      .warn { background: #f59e0b; }
-      .btn { display: inline-flex; align-items: center; justify-content: center; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid color-mix(in oklab, CanvasText 12%, transparent); background: transparent; cursor: pointer; }
-      .btn:hover { background: color-mix(in oklab, CanvasText 6%, transparent); }
-      input[type="file"], input[type="password"] { width: 100%; }
-      input[type="password"] { height: 38px; border-radius: 10px; border: 1px solid color-mix(in oklab, CanvasText 12%, transparent); padding: 0 10px; background: transparent; }
-      .stack { display: grid; gap: 10px; }
-      .small { font-size: 12px; opacity: .8; }
-      pre { margin: 0; padding: 12px; border-radius: 12px; overflow: auto; background: color-mix(in oklab, Canvas 88%, CanvasText 12%); border: 1px solid color-mix(in oklab, CanvasText 12%, transparent); }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <header>
-        <div>
-          <h1>BridgeWorks API</h1>
-          <div class="muted">Service: <code>apps/api</code> · Time: <span id="now"></span></div>
-        </div>
-        <button class="btn" id="refresh">Refresh checks</button>
-      </header>
-
-      <div class="grid">
-        <section class="card">
-          <h2>Status checks</h2>
-          <div class="row">
-            <div><code>GET /health</code></div>
-            <div class="pill"><span class="dot" id="dot-health"></span><span id="text-health" class="small">pending</span></div>
-          </div>
-          <div class="row">
-            <div><code>GET /ready</code> <span class="small">(DB check)</span></div>
-            <div class="pill"><span class="dot" id="dot-ready"></span><span id="text-ready" class="small">pending</span></div>
-          </div>
-          <div class="row">
-            <div><code>GET /db-health</code></div>
-            <div class="pill"><span class="dot" id="dot-db"></span><span id="text-db" class="small">pending</span></div>
-          </div>
-          <div class="row">
-            <div><code>GET /db-proof</code> <span class="small">(disabled in prod)</span></div>
-            <div class="pill"><span class="dot" id="dot-proof"></span><span id="text-proof" class="small">pending</span></div>
-          </div>
-          <div style="margin-top: 10px" class="small muted">
-            Also available under <code>/api/*</code> (aliases): <a href="/api/health">/api/health</a>, <a href="/api/ready">/api/ready</a>, <a href="/api/db-health">/api/db-health</a>, <a href="/api/db-proof">/api/db-proof</a>.
-          </div>
-        </section>
-
-        <aside class="card">
-          <h2>Config snapshot</h2>
-          <div class="stack">
-            <div>
-              <div class="small muted">CORS_ORIGINS</div>
-              <div class="small">${cors}</div>
-            </div>
-            <div>
-              <div class="small muted">DATABASE_URL</div>
-              <div class="small"><code>${hasDb ? "set" : "(not set)"}</code></div>
-            </div>
-            <div>
-              <div class="small muted">R2</div>
-              <div class="small"><code>${hasR2 ? "configured" : "(not set)"}</code></div>
-            </div>
-            <div>
-              <div class="small muted">R2_PUBLIC_BASE_URL</div>
-              <div class="small"><code>${escapeHtml(process.env.R2_PUBLIC_BASE_URL || "(not set)")}</code></div>
-            </div>
-            <div>
-              <div class="small muted">R2_UPLOAD_TOKEN</div>
-              <div class="small"><code>${escapeHtml(maskSecret(process.env.R2_UPLOAD_TOKEN))}</code></div>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      <section class="card" style="margin-top: 12px">
-        <h2>R2 upload test</h2>
-        <form id="uploadForm" class="stack">
-          <div class="stack">
-            <div class="small muted">File (field name must be <code>file</code>)</div>
-            <input type="file" name="file" required />
-          </div>
-          <div class="stack">
-            <div class="small muted">Upload token (optional; sent as <code>x-upload-token</code>)</div>
-            <input type="password" name="token" placeholder="R2_UPLOAD_TOKEN" />
-          </div>
-          <div style="display:flex; gap: 10px; align-items:center;">
-            <button class="btn" type="submit">Upload to <code>/r2-upload</code></button>
-            <span class="small muted" id="uploadStatus"></span>
-          </div>
-          <pre id="uploadResult">{}</pre>
-        </form>
-      </section>
-
-      <section class="card" style="margin-top: 12px">
-        <h2>Raw output</h2>
-        <pre id="raw">{}</pre>
-      </section>
-    </div>
-
-    <script>
-      const nowEl = document.getElementById('now');
-      const raw = document.getElementById('raw');
-
-      function setStatus(dotId, textId, status, msg) {
-        const dot = document.getElementById(dotId);
-        const text = document.getElementById(textId);
-        dot.className = 'dot ' + (status === 'ok' ? 'ok' : status === 'bad' ? 'bad' : 'warn');
-        text.textContent = msg;
-      }
-
-      async function check(path, dotId, textId) {
-        setStatus(dotId, textId, 'warn', 'checking…');
-        try {
-          const res = await fetch(path, { cache: 'no-store' });
-          const json = await res.json().catch(() => null);
-          const ok = res.ok && json && json.ok !== false;
-          setStatus(dotId, textId, ok ? 'ok' : 'bad', ok ? 'ok' : 'fail (' + res.status + ')');
-          return { path, status: res.status, ok, json };
-        } catch (e) {
-          setStatus(dotId, textId, 'bad', 'network error');
-          return { path, status: 0, ok: false, error: String(e) };
-        }
-      }
-
-      async function refresh() {
-        nowEl.textContent = new Date().toISOString();
-        const results = [];
-        results.push(await check('/health', 'dot-health', 'text-health'));
-        results.push(await check('/ready', 'dot-ready', 'text-ready'));
-        results.push(await check('/db-health', 'dot-db', 'text-db'));
-        results.push(await check('/db-proof', 'dot-proof', 'text-proof'));
-        raw.textContent = JSON.stringify(results, null, 2);
-      }
-
-      document.getElementById('refresh').addEventListener('click', (e) => {
-        e.preventDefault();
-        refresh();
-      });
-
-      const uploadForm = document.getElementById('uploadForm');
-      const uploadStatus = document.getElementById('uploadStatus');
-      const uploadResult = document.getElementById('uploadResult');
-
-      uploadForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        uploadStatus.textContent = 'uploading…';
-        uploadResult.textContent = '{}';
-        try {
-          const fileInput = uploadForm.querySelector('input[name=\"file\"]');
-          const tokenInput = uploadForm.querySelector('input[name=\"token\"]');
-          const file = fileInput.files && fileInput.files[0];
-          if (!file) throw new Error('Pick a file first.');
-
-          const form = new FormData();
-          form.set('file', file);
-
-          const headers = new Headers();
-          const token = (tokenInput.value || '').trim();
-          if (token) headers.set('x-upload-token', token);
-
-          const res = await fetch('/r2-upload', { method: 'POST', body: form, headers });
-          const json = await res.json().catch(() => null);
-          uploadResult.textContent = JSON.stringify({ status: res.status, json }, null, 2);
-          uploadStatus.textContent = res.ok ? 'done' : 'failed';
-        } catch (err) {
-          uploadStatus.textContent = 'failed';
-          uploadResult.textContent = JSON.stringify({ error: String(err) }, null, 2);
-        }
-      });
-
-      refresh();
-    </script>
-  </body>
-</html>`);
+  res.sendFile(path.join(staticDir, "index.html"));
 });
 
-addAlias("/health", "/api/health", (req, res) => {
+// Keep these endpoints working EXACTLY as before:
+app.get("/health", (req, res) => res.json({ ok: true }));
+
+app.get("/health/db", async (req, res) => {
+  try {
+    const { rows } = await pool.query("select now() as now");
+    res.json({ ok: true, ...rows[0] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get("/whoami", (req, res) => {
   noStore(res);
-  res.json({ ok: true, service: "api", timestamp: new Date().toISOString() });
+  const buildSha = getBuildSha();
+  res.json({
+    ok: true,
+    service: "api",
+    hostname: os.hostname(),
+    pid: process.pid,
+    uptimeSec: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    ...(buildSha ? { buildSha } : {}),
+  });
 });
 
+app.get("/cache-test", (req, res) => {
+  const nonce = crypto.randomUUID();
+  const etag = `"${nonce}"`;
+
+  res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60");
+  res.setHeader("ETag", etag);
+
+  const inm = req.headers["if-none-match"];
+  const inmValue = Array.isArray(inm) ? inm.join(",") : inm;
+  if (inmValue && inmValue.split(",").map((s) => s.trim()).includes(etag)) {
+    return res.status(304).end();
+  }
+
+  return res.json({ ok: true, nonce, timestamp: new Date().toISOString() });
+});
+
+app.get("/ops/status", async (req, res) => {
+  noStore(res);
+
+  const buildSha = getBuildSha();
+  const timestamp = new Date().toISOString();
+  const selfBase = getSelfBaseUrl(req);
+
+  const api = {
+    ok: true,
+    uptimeSec: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+    pid: process.pid,
+    hostname: os.hostname(),
+    timestamp,
+    ...(buildSha ? { buildSha } : {}),
+  };
+
+  const db = { ok: false, latencyMs: null };
+  try {
+    const started = performance.now();
+    const { rows } = await pool.query("select now() as now");
+    db.ok = true;
+    db.latencyMs = Math.round(performance.now() - started);
+    db.now = rows?.[0]?.now;
+  } catch (e) {
+    db.ok = false;
+    db.latencyMs = null;
+    db.error = e instanceof Error ? e.message : String(e);
+  }
+
+  const services = [];
+  try {
+    services.push(await checkUrl("API /health", `${selfBase}/health`, "/health", 2500));
+    services.push(await checkUrl("API /health/db", `${selfBase}/health/db`, "/health/db", 3500));
+    services.push(await checkServiceReachable("Public", "https://www.bridgeworkspm.com"));
+    services.push(await checkServiceReachable("User", "https://user.bridgeworkspm.com"));
+    services.push(await checkServiceReachable("Staff", "https://staff.bridgeworkspm.com"));
+    services.push(await checkUrl("API root", `${selfBase}/`, "/", 2500));
+  } catch (e) {
+    services.push({
+      name: "ops/status",
+      url: selfBase,
+      pathChecked: "/ops/status",
+      ok: false,
+      status: 0,
+      latencyMs: null,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  res.json({ api, db, services });
+});
+
+// Convenience / legacy helpers (keep working)
 addAlias("/ready", "/api/ready", async (req, res) => {
   noStore(res);
-  const pool = getPool();
-  if (!pool) return res.status(503).json({ ok: false, error: "DATABASE_URL is not set" });
   try {
     await pool.query("select 1");
     res.json({ ok: true, service: "api", db: "ok", timestamp: new Date().toISOString() });
@@ -324,8 +259,6 @@ addAlias("/ready", "/api/ready", async (req, res) => {
 
 addAlias("/db-health", "/api/db-health", async (req, res) => {
   noStore(res);
-  const pool = getPool();
-  if (!pool) return res.status(500).json({ ok: false, error: "DATABASE_URL is not set" });
   try {
     const { rows } = await pool.query("select now() as now");
     res.json({ ok: true, now: rows[0].now });
@@ -339,8 +272,6 @@ addAlias("/db-proof", "/api/db-proof", async (req, res) => {
   if (process.env.NODE_ENV === "production") {
     return res.status(404).json({ ok: false });
   }
-  const pool = getPool();
-  if (!pool) return res.status(500).json({ ok: false, error: "DATABASE_URL is not set" });
 
   const table = "bw_neon_proof";
   try {
@@ -367,9 +298,7 @@ addAlias("/db-proof", "/api/db-proof", async (req, res) => {
       [table]
     );
 
-    const rows = await pool.query(
-      `SELECT id, created_at, message FROM ${table} ORDER BY id DESC LIMIT 5;`
-    );
+    const rows = await pool.query(`SELECT id, created_at, message FROM ${table} ORDER BY id DESC LIMIT 5;`);
 
     return res.json({
       ok: true,

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BridgeWorks API Ops Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container">
+        <div class="brand">
+          <div class="title">BridgeWorks API Ops Console</div>
+          <div class="subtitle">
+            <span class="mono" id="apiHost">api</span>
+            <span class="dot-sep">·</span>
+            <span id="lastUpdated">—</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <label class="toggle">
+            <input id="autoRefresh" type="checkbox" checked />
+            <span>Auto-refresh (30s)</span>
+          </label>
+          <button class="btn" id="refreshBtn" type="button">Refresh</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <div class="cardHeader">
+          <h2>Links</h2>
+        </div>
+        <div class="links">
+          <a href="https://www.bridgeworkspm.com/" target="_blank" rel="noreferrer">Public</a>
+          <a href="https://user.bridgeworkspm.com/" target="_blank" rel="noreferrer">User</a>
+          <a href="https://staff.bridgeworkspm.com/" target="_blank" rel="noreferrer">Staff</a>
+          <a href="https://api.bridgeworkspm.com/" target="_blank" rel="noreferrer">API</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <section class="card">
+          <div class="cardHeader">
+            <h2>Overview</h2>
+          </div>
+          <div class="kv">
+            <div class="k">API</div>
+            <div class="v"><span class="badge" id="apiBadge">—</span></div>
+            <div class="k">Uptime</div>
+            <div class="v mono" id="uptime">—</div>
+            <div class="k">Node</div>
+            <div class="v mono" id="nodeVersion">—</div>
+            <div class="k">PID</div>
+            <div class="v mono" id="pid">—</div>
+            <div class="k">Host</div>
+            <div class="v mono" id="hostname">—</div>
+            <div class="k">Build</div>
+            <div class="v mono" id="buildSha">—</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="cardHeader">
+            <h2>Cache Test</h2>
+            <button class="btn" id="cacheTestBtn" type="button">Run</button>
+          </div>
+          <div class="small muted">
+            Calls <span class="mono">/cache-test</span> twice. Second call sends
+            <span class="mono">If-None-Match</span> using the first response ETag.
+          </div>
+          <pre class="pre" id="cacheTestOut">{}</pre>
+        </section>
+      </section>
+
+      <section class="card">
+        <div class="cardHeader">
+          <h2>Checks</h2>
+          <div class="small muted">Green ≤ 800ms · Yellow 800–2000ms · Red &gt; 2000ms</div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th class="mono">HTTP</th>
+                <th class="mono">Latency</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="checksBody">
+              <tr>
+                <td colspan="5" class="muted">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHeader">
+          <h2>Raw JSON</h2>
+        </div>
+        <pre class="pre" id="rawOut">{}</pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+
