@@ -1,5 +1,5 @@
-import { createDbReadyHandler } from "db/ready";
+import { createHealthHandler } from "shared/health";
 
 export const runtime = "nodejs";
 
-export const GET = createDbReadyHandler("staff");
+export const GET = createHealthHandler("staff");
