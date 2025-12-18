@@ -137,3 +137,12 @@ ISC
 ## 🔗 Links
 
 - [GitHub Repository](https://github.com/jkennanbrower-droid/BridgeWorks-PM)
+
+## Deploying to Render (Public App)
+
+This repo uses `pnpm` (there is no `package-lock.json`), so `npm ci` will fail on Render unless you switch to pnpm.
+
+- **Build Command**: `npm run render:build:public`
+- **Start Command**: `npm run render:start:public`
+
+An example blueprint is included at `render.yaml`.

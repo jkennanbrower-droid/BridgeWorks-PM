@@ -46,14 +46,11 @@ function inferDirectUrlFromPooledUrl(urlString: string): string {
   }
 }
 
-const directUrl =
-  process.env.DATABASE_URL_DIRECT ??
-  process.env.DIRECT_URL ??
-  (pooledUrl ? inferDirectUrlFromPooledUrl(pooledUrl) : undefined);
-
-const prismaUrl = directUrl ?? pooledUrl;
-if (!prismaUrl) {
-  throw new Error("DATABASE_URL is not set (set DATABASE_URL or DATABASE_URL_DIRECT)");
+const directUrl = process.env.DATABASE_URL_DIRECT ?? process.env.DIRECT_URL;
+if (!directUrl) {
+  throw new Error(
+    "DATABASE_URL_DIRECT is required for Prisma (use a direct, non-pooler connection string)"
+  );
 }
 
 export default defineConfig({
@@ -63,6 +60,6 @@ export default defineConfig({
     seed: "pnpm -C packages/db run seed",
   },
   datasource: {
-    url: prismaUrl,
+    url: directUrl,
   },
 });

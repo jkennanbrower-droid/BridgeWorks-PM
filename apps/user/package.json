@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "cross-env-shell \"next start -p $PORT\"",
+    "start": "node ../../scripts/next-start.mjs",
     "lint": "eslint"
   },
   "dependencies": {
