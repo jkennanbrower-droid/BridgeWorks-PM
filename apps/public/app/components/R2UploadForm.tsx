@@ -28,6 +28,9 @@ export function R2UploadForm() {
     return `${(kb / 1024).toFixed(2)} MB`;
   }, [file]);
 
+  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+  const uploadUrl = apiBaseUrl ? `${apiBaseUrl}/r2-upload` : "/api/r2-upload";
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -39,11 +42,16 @@ export function R2UploadForm() {
 
     setSubmitting(true);
     try {
+      if (!apiBaseUrl && process.env.NODE_ENV === "production") {
+        setError("Missing NEXT_PUBLIC_API_BASE_URL configuration.");
+        return;
+      }
+
       const form = new FormData();
       form.set("file", file);
       const headers = new Headers();
       if (tokenValue.trim().length > 0) headers.set("x-upload-token", tokenValue.trim());
-      const res = await fetch("/api/r2-upload", { method: "POST", body: form, headers });
+      const res = await fetch(uploadUrl, { method: "POST", body: form, headers });
       const json = (await res.json().catch(() => null)) as UploadResult | UploadError | null;
       if (!res.ok || !json || (json as UploadError).ok === false) {
         setError((json as UploadError | null)?.error ?? `Upload failed (${res.status}).`);

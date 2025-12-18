@@ -153,3 +153,13 @@ If the site renders but looks completely unstyled, check the browser network tab
 - **Using Cloudflare proxy**: purge Cloudflare cache (or at least `/_next/static/*`) after a failed deploy; Cloudflare can cache a 404 for a chunk URL and keep serving “unstyled” pages until the cache is cleared.
 
 An example blueprint is included at `render.yaml`.
+
+## SaaS-style API Architecture
+
+Best practice is to keep a single backend API service (`apps/api`) and make the Next apps (public/staff/user) call it.
+
+- Next apps keep only `GET /api/health` and `GET /api/ready` (no DB dependency).
+- DB/R2 endpoints live in the API service:
+  - `GET /health`, `GET /ready` (DB check), `GET /db-health`, `GET /db-proof` (non-prod), `POST /r2-upload`
+- Configure `NEXT_PUBLIC_API_BASE_URL` in the Next apps (example: `https://api.bridgeworkspm.com`).
+- Configure CORS on the API service via `CORS_ORIGINS` (comma-separated list of allowed origins).
