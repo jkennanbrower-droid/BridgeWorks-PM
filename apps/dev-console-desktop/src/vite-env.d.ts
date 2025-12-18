@@ -1,57 +1,38 @@
 /// <reference types="vite/client" />
 
-export {};
-
-type RenderServicesMap = {
-  public: string;
-  user: string;
-  staff: string;
-  api: string;
-};
-
-type DevConsoleConfig = {
-  publicBaseUrl: string;
-  userBaseUrl: string;
-  staffBaseUrl: string;
-  apiBaseUrl: string;
-
-  adminToken?: string;
-
-  renderApiKey?: string; // will come back masked as ••••••
-  renderServices?: RenderServicesMap;
-};
-
-type HealthRow = {
-  name: string;
-  url: string;
-  ok: boolean;
-  status: number;
-  ms: number;
-  body?: unknown;
-  error?: string;
-};
-
-type HealthCheckAllResponse = {
-  config: DevConsoleConfig;
-  results: HealthRow[];
-};
+import type { AppConfig, HealthCheckAllResponse, RenderService, RenderServiceStatus, RenderSelection } from "./types";
 
 type RenderDeployArgs = { serviceId: string; clearCache?: boolean };
-type RenderSuspendArgs = { serviceId: string };
-type RenderResumeArgs = { serviceId: string };
 
 declare global {
   interface Window {
     bw: {
-      // config + health
-      getConfig: () => Promise<DevConsoleConfig>;
-      setConfig: (cfg: Partial<DevConsoleConfig>) => Promise<DevConsoleConfig>;
-      checkAll: () => Promise<HealthCheckAllResponse>;
+      config: {
+        get: () => Promise<AppConfig>;
+        set: (next: Partial<AppConfig> & { render?: { selection?: Partial<RenderSelection> } }) => Promise<AppConfig>;
+      };
+      health: {
+        checkAll: () => Promise<HealthCheckAllResponse>;
+      };
+      render: {
+        apiKeyConfigured: () => Promise<{ configured: boolean }>;
+        listServices: () => Promise<RenderService[]>;
+        serviceStatus: (args: { serviceId: string }) => Promise<RenderServiceStatus>;
+        deploy: (args: RenderDeployArgs) => Promise<unknown>;
+        suspend: (args: { serviceId: string }) => Promise<unknown>;
+        resume: (args: { serviceId: string }) => Promise<unknown>;
+      };
 
-      // render controls
+      // legacy
+      getConfig: () => Promise<AppConfig>;
+      setConfig: (next: Partial<AppConfig>) => Promise<AppConfig>;
+      checkAll: () => Promise<HealthCheckAllResponse>;
       renderDeploy: (args: RenderDeployArgs) => Promise<unknown>;
-      renderSuspend: (args: RenderSuspendArgs) => Promise<unknown>;
-      renderResume: (args: RenderResumeArgs) => Promise<unknown>;
+      renderSuspend: (args: { serviceId: string }) => Promise<unknown>;
+      renderResume: (args: { serviceId: string }) => Promise<unknown>;
     };
   }
 }
+
+export {};
+

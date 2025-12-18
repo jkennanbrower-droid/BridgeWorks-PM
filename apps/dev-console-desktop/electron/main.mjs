@@ -8,6 +8,7 @@ import {
   migrateLegacyRenderApiKeyIfPresent,
   isEncryptionAvailable
 } from "./lib/secrets.mjs";
+import { migrateLegacyConfigIfPresent } from "./lib/config.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   console.log("safeStorage available =", isEncryptionAvailable());
+  console.log("userData =", app.getPath("userData"));
+  migrateLegacyConfigIfPresent();
   migrateLegacyRenderApiKeyIfPresent();
   const imported = importRenderApiKeyFromEnvIfPresent();
   if (imported.imported) console.log("Imported RENDER_API_KEY into OS-encrypted storage.");
@@ -52,4 +55,3 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
-

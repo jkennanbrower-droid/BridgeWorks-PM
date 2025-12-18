@@ -49,6 +49,32 @@ function getRenderSelection(env) {
   };
 }
 
+export function migrateLegacyConfigIfPresent() {
+  // Legacy URL keys (pre env split)
+  const legacyUrlKeys = ["publicBaseUrl", "userBaseUrl", "staffBaseUrl", "apiBaseUrl"];
+  for (const k of legacyUrlKeys) {
+    const v = store.get(k);
+    if (typeof v !== "string" || !v.trim()) continue;
+    const newKey = `environments.prod.${k}`;
+    const existing = store.get(newKey);
+    if (typeof existing !== "string" || !existing.trim()) {
+      store.set(newKey, v);
+    }
+    store.delete(k);
+  }
+
+  // Legacy Render selection
+  const legacyRenderServices = store.get("renderServices");
+  if (legacyRenderServices && typeof legacyRenderServices === "object") {
+    const baseKey = "render.selection.prod";
+    const existing = store.get(baseKey);
+    if (!existing || typeof existing !== "object") {
+      store.set(baseKey, legacyRenderServices);
+    }
+    store.delete("renderServices");
+  }
+}
+
 export function getConfigInternal() {
   const env = coerceEnv(String(store.get("env") || DEFAULT_ENV));
   return {
@@ -111,4 +137,3 @@ export function setConfigPartial(next) {
     }
   }
 }
-

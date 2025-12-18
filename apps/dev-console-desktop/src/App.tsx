@@ -1,347 +1,457 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import type { AppConfig, HealthRow, RenderSelection, RenderService, RenderServiceStatus } from "./types";
+import { formatUnknownError, requireBw } from "./bw";
+import { Modal } from "./ui/modal";
+import { ToastHost, useToasts } from "./ui/toasts";
 
-type RenderServicesMap = {
-  public: string;
-  user: string;
-  staff: string;
-  api: string;
-};
+type ServiceKey = keyof RenderSelection;
 
-type Config = {
-  publicBaseUrl: string;
-  userBaseUrl: string;
-  staffBaseUrl: string;
-  apiBaseUrl: string;
-  adminToken?: string;
-
-  // added
-  renderApiKey?: string; // masked as •••••• from main
-  renderServices?: RenderServicesMap;
-};
-
-type Row = {
-  name: string;
-  url: string;
-  ok: boolean;
-  status: number;
-  ms: number;
-  body?: unknown;
-  error?: string;
-};
-
-function formatUnknownError(e: unknown): string {
-  if (e instanceof Error) return e.stack || e.message;
-  if (typeof e === "string") return e;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
+function fmtTime(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
 }
 
-function short(s: string, n = 80) {
-  if (!s) return "";
-  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+function statusPill({ suspended }: { suspended: boolean }) {
+  return (
+    <span
+      style={{
+        padding: "2px 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid rgba(255,255,255,0.10)",
+        background: suspended ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
+        color: suspended ? "rgba(251, 191, 36, 0.95)" : "rgba(52, 211, 153, 0.95)"
+      }}
+    >
+      {suspended ? "Suspended" : "Active"}
+    </span>
+  );
+}
+
+function rowToServiceKey(rowName: string): { key: ServiceKey | null; label: string } {
+  if (rowName.startsWith("Public (landing)")) return { key: "public", label: "Public" };
+  if (rowName.startsWith("User ")) return { key: "user", label: "User" };
+  if (rowName.startsWith("Staff ")) return { key: "staff", label: "Staff" };
+  if (rowName.startsWith("API /health")) return { key: "api", label: "API" };
+  return { key: null, label: rowName };
 }
 
 export default function App() {
-  const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [cfg, setCfg] = useState<Config | null>(null);
+  const { toasts, push, dismiss } = useToasts();
 
-  const [err, setErr] = useState<string | null>(null);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [rows, setRows] = useState<HealthRow[]>([]);
+  const [loadingHealth, setLoadingHealth] = useState(false);
 
-  // settings form state
-  const [showSettings, setShowSettings] = useState(true);
-  const [renderApiKeyInput, setRenderApiKeyInput] = useState("");
-  const [renderServicesInput, setRenderServicesInput] = useState<RenderServicesMap>({
-    public: "",
-    user: "",
-    staff: "",
-    api: "",
-  });
+  const [services, setServices] = useState<RenderService[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
 
-  const [saving, setSaving] = useState(false);
-  const [acting, setActing] = useState<string | null>(null);
+  const [statusById, setStatusById] = useState<Record<string, RenderServiceStatus>>({});
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  async function refresh() {
-    setLoading(true);
-    setErr(null);
-    setActionMsg(null);
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [suspendTyped, setSuspendTyped] = useState("");
+  const [suspendTarget, setSuspendTarget] = useState<{ serviceId: string; label: string } | null>(null);
+
+  const selection = config?.render.selection;
+
+  const selectedServiceIds = useMemo(() => {
+    const ids = Object.values(selection || {}).filter(Boolean);
+    return Array.from(new Set(ids));
+  }, [selection]);
+
+  async function refreshHealth() {
+    setLoadingHealth(true);
     try {
-      if (!window.bw) throw new Error("window.bw is undefined (preload not attached)");
-      const data = await window.bw.checkAll();
-      setCfg(data.config);
-      setRows(data.results);
-
-      // hydrate settings form with stored config (key will come back masked)
-      const rs = data.config?.renderServices || { public: "", user: "", staff: "", api: "" };
-      setRenderServicesInput(rs);
-
-      // only auto-fill the api key input if user already typed it this run
-      // (because the stored key is intentionally masked)
+      const bw = requireBw();
+      const res = await bw.health.checkAll();
+      setConfig(res.config);
+      setRows(res.results);
     } catch (e: unknown) {
-      setErr(formatUnknownError(e));
-      setCfg(null);
+      push("error", formatUnknownError(e));
       setRows([]);
     } finally {
-      setLoading(false);
+      setLoadingHealth(false);
     }
   }
 
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  const serviceIdByRowName = useMemo(() => {
-    // Map your existing row names to the config keys
-    // (your checkAll() uses these exact names)
-    return (rowName: string): { key: keyof RenderServicesMap | null; label: string } => {
-      if (rowName.startsWith("Public (landing)")) return { key: "public", label: "Public" };
-      if (rowName.startsWith("User ")) return { key: "user", label: "User" };
-      if (rowName.startsWith("Staff ")) return { key: "staff", label: "Staff" };
-      if (rowName.startsWith("API /health")) return { key: "api", label: "API" };
-      return { key: null, label: rowName };
-    };
-  }, []);
-
-  async function saveSettings() {
-    setSaving(true);
-    setErr(null);
-    setActionMsg(null);
+  async function refreshStatuses(serviceIds: string[]) {
+    if (serviceIds.length === 0) return;
     try {
-      if (!window.bw) throw new Error("window.bw is undefined (preload not attached)");
+      const bw = requireBw();
+      const entries = await Promise.all(
+        serviceIds.map(async (serviceId) => {
+          try {
+            const s = await bw.render.serviceStatus({ serviceId });
+            return [serviceId, s] as const;
+          } catch (e) {
+            return [
+              serviceId,
+              {
+                id: serviceId,
+                name: "",
+                type: "web_service",
+                suspended: false,
+                lastDeployAt: "",
+                updatedAt: ""
+              } satisfies RenderServiceStatus
+            ] as const;
+          }
+        })
+      );
+      setStatusById((prev) => {
+        const next = { ...prev };
+        for (const [id, s] of entries) next[id] = s;
+        return next;
+      });
+    } catch (e) {
+      push("error", formatUnknownError(e));
+    }
+  }
 
-      // NOTE: renderApiKey is only saved if the input is non-empty.
-      // This avoids overwriting a saved key with blank by accident.
-      const payload: any = {
-        renderServices: { ...renderServicesInput },
-      };
-      if (renderApiKeyInput.trim()) payload.renderApiKey = renderApiKeyInput.trim();
+  async function refreshAll() {
+    await refreshHealth();
+  }
 
-      await window.bw.setConfig(payload);
+  useEffect(() => {
+    refreshAll();
+  }, []);
 
-      setActionMsg("Saved settings.");
-      setRenderApiKeyInput(""); // clear input after save
-      await refresh();
-    } catch (e: unknown) {
-      setErr(formatUnknownError(e));
+  useEffect(() => {
+    if (!config?.render.apiKeyConfigured) return;
+    refreshStatuses(selectedServiceIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.render.apiKeyConfigured, selectedServiceIds.join("|")]);
+
+  async function setEnv(env: AppConfig["env"]) {
+    try {
+      const bw = requireBw();
+      const next = await bw.config.set({ env });
+      setConfig(next);
+      push("success", `Environment set to ${env}.`);
+      await refreshHealth();
+    } catch (e) {
+      push("error", formatUnknownError(e));
+    }
+  }
+
+  async function setDebug(debug: boolean) {
+    try {
+      const bw = requireBw();
+      const next = await bw.config.set({ debug });
+      setConfig(next);
+      push("success", debug ? "Debug logging enabled." : "Debug logging disabled.");
+    } catch (e) {
+      push("error", formatUnknownError(e));
+    }
+  }
+
+  async function saveSelection(nextSelection: Partial<RenderSelection>) {
+    try {
+      const bw = requireBw();
+      const next = await bw.config.set({ render: { selection: nextSelection } });
+      setConfig(next);
+      push("success", "Saved Render service selection.");
+    } catch (e) {
+      push("error", formatUnknownError(e));
+    }
+  }
+
+  async function loadRenderServices() {
+    setLoadingServices(true);
+    try {
+      const bw = requireBw();
+      const list = await bw.render.listServices();
+      setServices(list);
+      push("success", `Loaded ${list.length} Render services.`);
+    } catch (e) {
+      push("error", formatUnknownError(e));
+      setServices([]);
     } finally {
-      setSaving(false);
+      setLoadingServices(false);
     }
   }
 
   async function doDeploy(serviceId: string, label: string) {
-    setErr(null);
-    setActionMsg(null);
-    setActing(`deploy:${label}`);
+    const key = `deploy:${serviceId}`;
+    if (busyKey) return;
+    setBusyKey(key);
     try {
-      await window.bw.renderDeploy({ serviceId, clearCache: false });
-      setActionMsg(`Deploy triggered for ${label}.`);
-      await refresh();
-    } catch (e: unknown) {
-      setErr(formatUnknownError(e));
+      const bw = requireBw();
+      await bw.render.deploy({ serviceId, clearCache: false });
+      push("success", `Deploy triggered for ${label}.`);
+      await refreshStatuses([serviceId]);
+    } catch (e) {
+      push("error", formatUnknownError(e));
     } finally {
-      setActing(null);
+      setBusyKey(null);
     }
   }
 
-  async function doSuspend(serviceId: string, label: string) {
-    setErr(null);
-    setActionMsg(null);
-    const typed = prompt(`Type SUSPEND to pause ${label}:`);
-    if (typed !== "SUSPEND") return;
+  function openSuspend(serviceId: string, label: string) {
+    setSuspendTyped("");
+    setSuspendTarget({ serviceId, label });
+    setSuspendOpen(true);
+  }
 
-    setActing(`suspend:${label}`);
+  async function confirmSuspend() {
+    const target = suspendTarget;
+    if (!target) return;
+    if (suspendTyped !== "SUSPEND") return;
+
+    const key = `suspend:${target.serviceId}`;
+    if (busyKey) return;
+    setBusyKey(key);
     try {
-      await window.bw.renderSuspend({ serviceId });
-      setActionMsg(`Suspended ${label}.`);
-      await refresh();
-    } catch (e: unknown) {
-      setErr(formatUnknownError(e));
+      const bw = requireBw();
+      await bw.render.suspend({ serviceId: target.serviceId });
+      push("success", `Suspended ${target.label}.`);
+      setSuspendOpen(false);
+      await refreshStatuses([target.serviceId]);
+    } catch (e) {
+      push("error", formatUnknownError(e));
     } finally {
-      setActing(null);
+      setBusyKey(null);
     }
   }
 
   async function doResume(serviceId: string, label: string) {
-    setErr(null);
-    setActionMsg(null);
-    const ok = confirm(`Resume ${label}?`);
-    if (!ok) return;
-
-    setActing(`resume:${label}`);
+    const key = `resume:${serviceId}`;
+    if (busyKey) return;
+    setBusyKey(key);
     try {
-      await window.bw.renderResume({ serviceId });
-      setActionMsg(`Resumed ${label}.`);
-      await refresh();
-    } catch (e: unknown) {
-      setErr(formatUnknownError(e));
+      const bw = requireBw();
+      await bw.render.resume({ serviceId });
+      push("success", `Resumed ${label}.`);
+      await refreshStatuses([serviceId]);
+    } catch (e) {
+      push("error", formatUnknownError(e));
     } finally {
-      setActing(null);
+      setBusyKey(null);
     }
   }
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h2>BridgeWorks Dev Console</h2>
+    <div className="app">
+      <ToastHost toasts={toasts} onDismiss={dismiss} />
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-        <button onClick={refresh} disabled={loading}>
-          {loading ? "Checking..." : "Refresh"}
-        </button>
+      <div className="topbar">
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+          <div className="title">BridgeWorks Dev Console</div>
+          <div className="subtitle">Health checks + Render controls</div>
+        </div>
 
-        <button onClick={() => setShowSettings((v) => !v)}>
-          {showSettings ? "Hide Settings" : "Show Settings"}
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <label className="field">
+            <span>Environment</span>
+            <select
+              value={config?.env || "prod"}
+              onChange={(e) => setEnv(e.target.value as AppConfig["env"])}
+              disabled={!config}
+            >
+              <option value="prod">prod</option>
+              <option value="staging">staging</option>
+            </select>
+          </label>
 
-        {cfg ? (
-          <span style={{ opacity: 0.7 }}>
-            API: {cfg.apiBaseUrl} | Staff: {cfg.staffBaseUrl}
-          </span>
-        ) : null}
+          <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={Boolean(config?.debug)}
+              onChange={(e) => setDebug(e.target.checked)}
+              disabled={!config}
+            />
+            <span>Debug</span>
+          </label>
+
+          <button onClick={refreshAll} disabled={loadingHealth}>
+            {loadingHealth ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
-      {showSettings && (
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 12,
-          }}
-        >
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Render Settings</div>
+      <div className="grid">
+        <div className="card">
+          <div className="cardTitle">Render Settings</div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 8, alignItems: "center" }}>
-            <label>Render API Key</label>
-            <input
-              type="password"
-              placeholder={cfg?.renderApiKey ? "Saved (hidden) — paste to change" : "Paste Render API key"}
-              value={renderApiKeyInput}
-              onChange={(e) => setRenderApiKeyInput(e.target.value)}
-            />
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ opacity: 0.75 }}>API key</span>
+              {config?.render.apiKeyConfigured ? (
+                <span className="pill ok">Configured</span>
+              ) : (
+                <span className="pill warn">Missing</span>
+              )}
+            </div>
 
-            <label>Public serviceId</label>
-            <input
-              placeholder="srv-xxxx"
-              value={renderServicesInput.public}
-              onChange={(e) => setRenderServicesInput((p) => ({ ...p, public: e.target.value.trim() }))}
-            />
-
-            <label>User serviceId</label>
-            <input
-              placeholder="srv-xxxx"
-              value={renderServicesInput.user}
-              onChange={(e) => setRenderServicesInput((p) => ({ ...p, user: e.target.value.trim() }))}
-            />
-
-            <label>Staff serviceId</label>
-            <input
-              placeholder="srv-xxxx"
-              value={renderServicesInput.staff}
-              onChange={(e) => setRenderServicesInput((p) => ({ ...p, staff: e.target.value.trim() }))}
-            />
-
-            <label>API serviceId</label>
-            <input
-              placeholder="srv-xxxx"
-              value={renderServicesInput.api}
-              onChange={(e) => setRenderServicesInput((p) => ({ ...p, api: e.target.value.trim() }))}
-            />
-          </div>
-
-          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={saveSettings} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
+            <button onClick={loadRenderServices} disabled={!config?.render.apiKeyConfigured || loadingServices}>
+              {loadingServices ? "Loading services…" : "Fetch services from Render"}
             </button>
-            <span style={{ opacity: 0.7 }}>
-              Key is only saved if you paste it (to avoid overwriting). IDs always save.
-            </span>
+
+            {!config?.render.apiKeyConfigured ? (
+              <div className="hint">
+                Set `RENDER_API_KEY` in your environment and restart once. The main process imports it into
+                OS-encrypted storage (renderer never receives it).
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "160px 1fr", gap: 10 }}>
+            {(["public", "user", "staff", "api"] as ServiceKey[]).map((k) => (
+              <label key={k} className="fieldRow">
+                <span style={{ textTransform: "capitalize" }}>{k}</span>
+                <select
+                  value={(selection?.[k] || "") as string}
+                  onChange={(e) => saveSelection({ [k]: e.target.value } as any)}
+                  disabled={!config?.render.apiKeyConfigured}
+                >
+                  <option value="">(not selected)</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+
+          {config?.render.apiKeyConfigured && services.length === 0 ? (
+            <div className="hint" style={{ marginTop: 10 }}>
+              Fetch services to populate the dropdowns.
+            </div>
+          ) : null}
+        </div>
+
+        <div className="card">
+          <div className="cardTitle">Health</div>
+          <div className="hint">
+            Health checks run from the Electron main process against the currently selected environment base URLs.
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Health</th>
+                  <th>Latency</th>
+                  <th>URL</th>
+                  <th>Render</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const meta = rowToServiceKey(r.name);
+                  const serviceKey = meta.key;
+                  const label = meta.label;
+
+                  const serviceId = serviceKey ? selection?.[serviceKey] || "" : "";
+                  const renderStatus = serviceId ? statusById[serviceId] : undefined;
+
+                  const canRender = Boolean(config?.render.apiKeyConfigured && serviceId);
+                  const busy =
+                    busyKey === `deploy:${serviceId}` ||
+                    busyKey === `suspend:${serviceId}` ||
+                    busyKey === `resume:${serviceId}`;
+
+                  return (
+                    <tr key={r.name}>
+                      <td>{r.name}</td>
+                      <td>
+                        <span className={r.ok ? "pill ok" : "pill bad"}>
+                          {r.ok ? `OK (${r.status})` : `FAIL (${r.status || "no response"})`}
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>{r.ms} ms</td>
+                      <td className="mono">
+                        <a href={r.url} target="_blank" rel="noreferrer">
+                          {r.url}
+                        </a>
+                        {r.error ? <div className="err">{String(r.error)}</div> : null}
+                      </td>
+                      <td>
+                        {!serviceKey ? (
+                          <span style={{ opacity: 0.6 }}>n/a</span>
+                        ) : !config?.render.apiKeyConfigured ? (
+                          <span style={{ opacity: 0.7 }}>Configure API key</span>
+                        ) : !serviceId ? (
+                          <span style={{ opacity: 0.7 }}>Select service</span>
+                        ) : (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                              {renderStatus ? statusPill({ suspended: Boolean(renderStatus.suspended) }) : null}
+                              <span style={{ opacity: 0.75, fontSize: 12 }}>
+                                Last deploy: {renderStatus?.lastDeployAt ? fmtTime(renderStatus.lastDeployAt) : "—"}
+                              </span>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button disabled={!canRender || busy} onClick={() => doDeploy(serviceId, label)}>
+                                {busyKey === `deploy:${serviceId}` ? "Deploying…" : "Deploy"}
+                              </button>
+                              <button
+                                disabled={!canRender || busy}
+                                onClick={() => openSuspend(serviceId, label)}
+                                style={{ borderColor: "rgba(251, 191, 36, 0.35)" }}
+                              >
+                                {busyKey === `suspend:${serviceId}` ? "Pausing…" : "Pause"}
+                              </button>
+                              <button disabled={!canRender || busy} onClick={() => doResume(serviceId, label)}>
+                                {busyKey === `resume:${serviceId}` ? "Resuming…" : "Resume"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+      </div>
 
-      {actionMsg && (
-        <div style={{ marginBottom: 12, color: "green", whiteSpace: "pre-wrap" }}>
-          {actionMsg}
+      <Modal
+        open={suspendOpen}
+        title={`Pause ${suspendTarget?.label || ""}`}
+        onClose={() => setSuspendOpen(false)}
+      >
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ opacity: 0.9 }}>
+            This will suspend the Render service (stop running instances and stop serving traffic). Health checks will
+            likely fail until you resume it.
+          </div>
+
+          <label className="field">
+            <span>Type SUSPEND to confirm</span>
+            <input
+              value={suspendTyped}
+              onChange={(e) => setSuspendTyped(e.target.value)}
+              placeholder="SUSPEND"
+              autoFocus
+            />
+          </label>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button onClick={() => setSuspendOpen(false)} disabled={Boolean(busyKey)}>
+              Cancel
+            </button>
+            <button
+              onClick={confirmSuspend}
+              disabled={suspendTyped !== "SUSPEND" || Boolean(busyKey)}
+              style={{ borderColor: "rgba(239, 68, 68, 0.55)" }}
+            >
+              {busyKey?.startsWith("suspend:") ? "Pausing…" : "Pause"}
+            </button>
+          </div>
         </div>
-      )}
-
-      {err && (
-        <div style={{ marginBottom: 12, color: "crimson", whiteSpace: "pre-wrap" }}>
-          {err}
-        </div>
-      )}
-
-      <table width="100%" cellPadding={8} style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-            <th>Service</th>
-            <th>Status</th>
-            <th>Latency</th>
-            <th>URL</th>
-            <th>Render</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const meta = serviceIdByRowName(r.name);
-            const key = meta.key;
-            const label = meta.label;
-
-            const serviceId = key ? (cfg?.renderServices?.[key] || "") : "";
-            const canControl = Boolean(serviceId && serviceId.startsWith("srv-"));
-
-            const busy =
-              acting === `deploy:${label}` ||
-              acting === `suspend:${label}` ||
-              acting === `resume:${label}`;
-
-            return (
-              <tr key={r.name} style={{ borderBottom: "1px solid #eee" }}>
-                <td>{r.name}</td>
-                <td>{r.ok ? `OK (${r.status})` : `FAIL (${r.status || "no response"})`}</td>
-                <td>{r.ms} ms</td>
-                <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>
-                  <a href={r.url} target="_blank" rel="noreferrer">
-                    {r.url}
-                  </a>
-                  {r.error ? <div style={{ color: "crimson" }}>{r.error}</div> : null}
-                </td>
-
-                <td style={{ whiteSpace: "nowrap" }}>
-                  {!key ? (
-                    <span style={{ opacity: 0.5 }}>n/a</span>
-                  ) : !canControl ? (
-                    <span style={{ opacity: 0.6, fontSize: 12 }}>
-                      Set serviceId ({short(serviceId || "empty")})
-                    </span>
-                  ) : (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button disabled={busy} onClick={() => doDeploy(serviceId, label)}>
-                        {acting === `deploy:${label}` ? "Deploying..." : "Deploy"}
-                      </button>
-                      <button disabled={busy} onClick={() => doSuspend(serviceId, label)}>
-                        {acting === `suspend:${label}` ? "Pausing..." : "Pause"}
-                      </button>
-                      <button disabled={busy} onClick={() => doResume(serviceId, label)}>
-                        {acting === `resume:${label}` ? "Resuming..." : "Resume"}
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      <p style={{ marginTop: 12, opacity: 0.7 }}>
-        Health checks + Render controls. Add your Render API key and srv- IDs in Settings.
-      </p>
+      </Modal>
     </div>
   );
 }
+
