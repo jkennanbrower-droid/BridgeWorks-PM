@@ -122,7 +122,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+      <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             For every role
@@ -210,7 +210,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+      <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
@@ -286,7 +286,7 @@ export default function Home() {
       </section>
 
       <section className="bg-slate-50/60 dark:bg-white/5">
-        <div className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+        <div className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
           <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
@@ -382,7 +382,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+      <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             Testimonials
@@ -433,7 +433,7 @@ export default function Home() {
       </section>
 
       <section className="border-y border-black/10 bg-slate-50/60 dark:border-white/10 dark:bg-white/5">
-        <div className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+        <div className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resources
@@ -503,7 +503,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
+      <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
         <div className="rounded-3xl border border-black/10 bg-gradient-to-br from-teal-600/10 via-transparent to-transparent p-10 shadow-sm dark:border-white/10 dark:from-teal-500/10">
           <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
             <div>

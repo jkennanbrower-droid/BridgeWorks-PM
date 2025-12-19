@@ -43,26 +43,26 @@ export function HeroPreview() {
     <div className="relative overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,0,0,0.45)] dark:border-white/10 dark:bg-slate-950">
       <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-teal-600/10 via-teal-600/0 to-transparent" />
 
-      <div className="relative p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-3">
+      <div className="relative p-6 sm:p-7">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
             <span className="inline-flex h-7 items-center rounded-lg border border-black/10 bg-white px-2 shadow-sm dark:border-white/10 dark:bg-slate-950">
               Portfolio Overview
             </span>
-            <span className="hidden items-center gap-2 text-slate-500 dark:text-slate-400 sm:inline-flex">
+            <span className="hidden items-center gap-2 whitespace-nowrap text-slate-500 dark:text-slate-400 sm:inline-flex">
               <IconDot />
               <span>Updated 2 minutes ago</span>
             </span>
           </div>
 
-          <div className="flex rounded-xl border border-black/10 bg-white p-1 text-xs font-semibold shadow-sm dark:border-white/10 dark:bg-slate-950">
+          <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-black/10 bg-white p-1 text-xs font-semibold shadow-sm dark:border-white/10 dark:bg-slate-950">
             {(["Dashboard", "Maintenance", "Collections"] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
                 className={cx(
-                  "rounded-lg px-2.5 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-600",
+                  "shrink-0 rounded-lg px-2.5 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-600",
                   tab === t
                     ? "bg-slate-900 text-white dark:bg-white dark:text-slate-950"
                     : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5"
@@ -76,12 +76,12 @@ export function HeroPreview() {
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-black/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                <p className="text-[11px] font-semibold tracking-wide text-slate-600 dark:text-slate-300">
                   Occupancy
                 </p>
-                <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+                <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-white">
                   {Math.round(occupancy)}%
                 </p>
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
@@ -89,11 +89,11 @@ export function HeroPreview() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-black/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
+              <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                <p className="text-[11px] font-semibold tracking-wide text-slate-600 dark:text-slate-300">
                   Open Work Orders
                 </p>
-                <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+                <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-white">
                   {Math.round(openWorkOrders)}
                 </p>
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
@@ -101,11 +101,11 @@ export function HeroPreview() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-black/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
+              <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                <p className="text-[11px] font-semibold tracking-wide text-slate-600 dark:text-slate-300">
                   Rent Collected
                 </p>
-                <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+                <p className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-white">
                   {usd.format(rentCollected)}
                 </p>
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
@@ -114,7 +114,7 @@ export function HeroPreview() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+            <div className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">
                   Maintenance Queue
@@ -172,7 +172,7 @@ export function HeroPreview() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+          <div className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-900 dark:text-white">
                 Rent Collection Timeline
@@ -227,4 +227,3 @@ export function HeroPreview() {
     </div>
   );
 }
-
