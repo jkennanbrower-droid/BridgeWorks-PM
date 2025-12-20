@@ -21,3 +21,76 @@ model Test {
 
   @@map("test")
 }
+
+model OnboardingApplication {
+  id               String   @id @default(uuid()) @db.Uuid
+  orgName          String   @map("org_name")
+  contactName      String?  @map("contact_name")
+  contactEmail     String   @map("contact_email")
+  contactPhone     String?  @map("contact_phone")
+  portfolioTypes   Json?    @map("portfolio_types") @db.JsonB
+  approxProperties Int?     @map("approx_properties")
+  approxUnits      Int?     @map("approx_units")
+  currentSoftware  String?  @map("current_software")
+  notes            String?  @map("notes")
+  status           String   @default("submitted")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  provisionedOrgId String?  @map("provisioned_org_id") @db.Uuid
+  provisionedAt    DateTime? @map("provisioned_at") @db.Timestamptz(6)
+
+  @@map("onboarding_applications")
+}
+
+model Person {
+  id              String   @id @default(uuid()) @db.Uuid
+  clerkUserId     String   @unique @map("clerk_user_id")
+  email           String
+  isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  auditLogs AuditLog[]
+
+  @@map("people")
+}
+
+model Organization {
+  id                      String   @id @default(uuid()) @db.Uuid
+  name                    String
+  slug                    String
+  status                  String   @default("active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  onboardingApplicationId String?  @unique @map("onboarding_application_id") @db.Uuid
+
+  invites Invite[]
+
+  @@map("organizations")
+}
+
+model Invite {
+  id                String   @id @default(uuid()) @db.Uuid
+  orgId             String   @map("org_id") @db.Uuid
+  email             String
+  role              String
+  clerkInvitationId String?  @map("clerk_invitation_id")
+  status            String
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@map("invites")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  actorPersonId String   @map("actor_person_id") @db.Uuid
+  action        String
+  targetType    String   @map("target_type")
+  targetId      String   @map("target_id") @db.Uuid
+  diffJsonb     Json?    @map("diff_jsonb") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor Person @relation(fields: [actorPersonId], references: [id])
+
+  @@map("audit_log")
+}

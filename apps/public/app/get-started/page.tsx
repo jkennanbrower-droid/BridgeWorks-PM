@@ -63,7 +63,7 @@ export default function GetStartedPage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href="#application"
+              href="/get-started/apply"
               className={cn(layout.buttonBase, layout.buttonPrimary)}
             >
               Start Application
@@ -168,23 +168,17 @@ export default function GetStartedPage() {
                 Ready to start your BridgeWorks rollout?
               </h2>
               <p className={cn(layout.body, layout.bodyMax, "mt-3")}>
-                Applications open soon. In the meantime, we can walk you through
-                the onboarding timeline and requirements.
+                Submit a short application and we will provision the right
+                workspace for your team.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                className={cn(
-                  layout.buttonBase,
-                  layout.buttonPrimary,
-                  "cursor-not-allowed opacity-60"
-                )}
+              <Link
+                href="/get-started/apply"
+                className={cn(layout.buttonBase, layout.buttonPrimary)}
               >
                 Start Application
-              </button>
+              </Link>
               <Link
                 href="/contact"
                 className={cn(layout.buttonBase, layout.buttonSecondary)}
@@ -193,9 +187,6 @@ export default function GetStartedPage() {
               </Link>
             </div>
           </div>
-          <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-            Coming soon.
-          </p>
         </div>
       </section>
     </main>
