@@ -20,6 +20,8 @@
     "render:start:staff": "corepack pnpm -C apps/staff run start",
     "render:build:user": "corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/user run build",
     "render:start:user": "corepack pnpm -C apps/user run start",
+    "render:build:org": "corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/org run build",
+    "render:start:org": "corepack pnpm -C apps/org run start",
     "render:build:api": "corepack pnpm install --frozen-lockfile && corepack pnpm -C apps/api run build",
     "render:start:api": "corepack pnpm -C apps/api run start",
     "dev:public": "pnpm verify:public-layout && dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100",
