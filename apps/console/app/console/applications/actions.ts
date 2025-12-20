@@ -1,6 +1,7 @@
 "use server";
 
 import { getPrisma } from "db";
+import type { Prisma } from "db";
 import { revalidatePath } from "next/cache";
 
 import { requirePlatformAdmin } from "../_server/people";
@@ -71,7 +72,7 @@ export async function approveAndProvision(
     const applicationId = requireApplicationId(formData);
     const prisma = getPrisma();
 
-    const txnResult = await prisma.$transaction(async (tx) => {
+    const txnResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const application = await tx.onboardingApplication.findUnique({
         where: { id: applicationId },
       });
@@ -182,7 +183,7 @@ export async function approveAndProvision(
       txnResult.orgId,
     );
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.invite.update({
         where: { id: txnResult.inviteId },
         data: { status: "sent", clerkInvitationId },
@@ -213,7 +214,7 @@ export async function approveAndProvision(
 
     if (pendingInfo) {
       try {
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           await tx.invite.update({
             where: { id: pendingInfo.inviteId },
             data: { status: "send_failed" },
@@ -260,7 +261,7 @@ export async function rejectApplication(
       throw new Error("Application already provisioned.");
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.onboardingApplication.update({
         where: { id: applicationId },
         data: { status: "rejected" },

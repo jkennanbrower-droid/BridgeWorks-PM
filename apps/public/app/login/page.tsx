@@ -18,6 +18,7 @@ type Portal = {
 
 const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
 const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
+const orgBaseUrl = process.env.NEXT_PUBLIC_ORG_APP_URL;
 const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
 const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
 const showMissingWarning = process.env.NODE_ENV !== "production" && isMissingBaseUrl;
@@ -34,7 +35,7 @@ function joinUrl(baseUrl: string | undefined, path: string) {
 
 const userUrl = joinUrl(portalBaseUrl, "/sign-in");
 const staffUrl = joinUrl(staffBaseUrl, "/sign-in");
-const ownerUrl = joinUrl(staffBaseUrl, "/sign-in");
+const ownerUrl = joinUrl(orgBaseUrl, "/sign-in");
 const consoleUrl = joinUrl(consoleBaseUrl, "/sign-in/console");
 
 const portals: Portal[] = [
@@ -192,12 +193,13 @@ export default function Page() {
 
                 <div className="mt-auto flex flex-col gap-3">
                   {portal.href ? (
-                    <Link
+                    <a
                       href={portal.href}
+                      rel="noreferrer"
                       className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:ring-offset-black"
                     >
                       Continue
-                    </Link>
+                    </a>
                   ) : (
                     <button
                       type="button"
@@ -333,12 +335,14 @@ export default function Page() {
               Support
             </Link>
             {consoleUrl ? (
-              <Link
+              <a
                 href={consoleUrl}
+                target="_blank"
+                rel="noreferrer"
                 className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
               >
                 Founder Console
-              </Link>
+              </a>
             ) : null}
           </div>
         </div>

@@ -2,9 +2,25 @@
 
 import * as Clerk from "@clerk/elements/common";
 import * as SignIn from "@clerk/elements/sign-in";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { Suspense } from "react";
 
 export default function SignInPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
+
+  if (!isLoaded) {
+    return (
+      <main className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+            Loading...
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
@@ -18,8 +34,21 @@ export default function SignInPage() {
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <Suspense fallback={<div />}>
-            <SignIn.Root path="/sign-in">
+          {isSignedIn ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              You are already signed in.
+              <button
+                type="button"
+                onClick={() => void signOut({ redirectUrl: "/sign-in" })}
+                className="ml-2 font-semibold underline"
+              >
+                Sign out
+              </button>
+              .
+            </div>
+          ) : (
+            <Suspense fallback={<div />}>
+              <SignIn.Root path="/sign-in">
             <Clerk.GlobalError className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" />
             <SignIn.Step name="start" className="space-y-4">
               <Clerk.Field name="identifier" className="grid gap-2">
@@ -92,6 +121,7 @@ export default function SignInPage() {
             </SignIn.Step>
             </SignIn.Root>
           </Suspense>
+          )}
         </div>
       </div>
     </main>

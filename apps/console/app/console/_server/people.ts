@@ -16,7 +16,7 @@ function parseAllowlist(raw: string | undefined): Set<string> {
 
 export async function ensureConsolePerson() {
   noStore();
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) {
     return null;
   }

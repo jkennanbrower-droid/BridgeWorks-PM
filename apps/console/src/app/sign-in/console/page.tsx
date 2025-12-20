@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useAuth, useClerk, useSignIn } from "@clerk/nextjs";
 
 export default function ConsoleSignInPage() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
   const { isLoaded: signInLoaded, signIn, setActive } = useSignIn();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +27,7 @@ export default function ConsoleSignInPage() {
 
       if (result.status === "complete") {
         await setActive?.({ session: result.createdSessionId });
-        router.replace("/console");
+        window.location.href = "/console";
         return;
       }
 
@@ -71,10 +72,19 @@ export default function ConsoleSignInPage() {
                 You are already signed in.
                 <button
                   type="button"
-                  onClick={() => router.replace("/console")}
+                  onClick={() => {
+                    window.location.href = "/console";
+                  }}
                   className="ml-2 font-semibold underline"
                 >
                   Continue to console
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void signOut({ redirectUrl: "/sign-in/console" })}
+                  className="ml-3 font-semibold underline"
+                >
+                  Sign out
                 </button>
                 .
               </div>
