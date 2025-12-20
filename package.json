@@ -26,8 +26,10 @@
     "dev:staff": "dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101",
     "dev:user": "dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102",
     "dev:api": "dotenv -e .env.local -- cross-env PORT=3103 npm -w apps/api run dev",
-    "dev:all": "concurrently -k \"dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100\" \"dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101\" \"dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102\"",
-    "dev:all:with-api": "concurrently -k \"dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100\" \"dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101\" \"dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102\" \"dotenv -e .env.local -- cross-env PORT=3103 npm -w apps/api run dev\""
+    "dev:org": "pnpm -C apps/org dev",
+    "dev:console": "pnpm -C apps/console dev",
+    "dev:all": "concurrently -k \"dotenv -e .env.local -- cross-env PORT=3100 pnpm -C apps/public dev\" \"dotenv -e .env.local -- cross-env PORT=3101 pnpm -C apps/staff dev\" \"dotenv -e .env.local -- cross-env PORT=3102 pnpm -C apps/user dev\" \"dotenv -e .env.local -- pnpm -C apps/org dev\" \"dotenv -e .env.local -- pnpm -C apps/console dev\"",
+    "dev:all:with-api": "concurrently -k \"dotenv -e .env.local -- cross-env PORT=3100 pnpm -C apps/public dev\" \"dotenv -e .env.local -- cross-env PORT=3101 pnpm -C apps/staff dev\" \"dotenv -e .env.local -- cross-env PORT=3102 pnpm -C apps/user dev\" \"dotenv -e .env.local -- pnpm -C apps/org dev\" \"dotenv -e .env.local -- pnpm -C apps/console dev\" \"dotenv -e .env.local -- cross-env PORT=3103 pnpm -C apps/api dev\""
     ,"db:migrate": "pnpm --dir packages/db exec prisma migrate dev",
     "db:generate": "pnpm --dir packages/db exec prisma generate",
     "db:studio": "pnpm --dir packages/db exec prisma studio",
