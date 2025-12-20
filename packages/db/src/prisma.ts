@@ -12,19 +12,19 @@ const repoRoot = path.join(__dirname, "..", "..", "..");
 dotenv.config({ path: path.join(repoRoot, ".env.local") });
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
-const directUrl = process.env.DATABASE_URL_DIRECT;
-if (!directUrl) {
-  throw new Error("DATABASE_URL_DIRECT is not set");
-}
-
-let prisma;
+let prisma: PrismaClient | undefined;
 
 export function getPrisma() {
   if (!prisma) {
+    const url = process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL;
+    if (!url) {
+      throw new Error("Missing DATABASE_URL_DIRECT or DATABASE_URL");
+    }
+
     const pool = new pg.Pool({
-      connectionString: directUrl,
+      connectionString: url,
       ssl:
-        directUrl.includes("sslmode=require") || directUrl.includes(".neon.tech")
+        url.includes("sslmode=require") || url.includes(".neon.tech")
           ? { rejectUnauthorized: false }
           : undefined,
     });

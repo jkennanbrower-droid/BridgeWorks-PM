@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ClerkLoaded, ClerkLoading } from "@clerk/nextjs";
 
 import { ensureConsolePerson } from "./_server/people";
+import { SignOutButton } from "../components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function ConsoleLayout({
             >
               Applications
             </Link>
+            <SignOutButton />
           </nav>
         </header>
         <ClerkLoading>

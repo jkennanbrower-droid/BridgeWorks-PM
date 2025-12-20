@@ -27,7 +27,8 @@ export default function ConsoleSignInPage() {
 
       if (result.status === "complete") {
         await setActive?.({ session: result.createdSessionId });
-        window.location.href = "/console";
+        router.replace("/console");
+        router.refresh();
         return;
       }
 
@@ -73,7 +74,8 @@ export default function ConsoleSignInPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = "/console";
+                    router.replace("/console");
+                    router.refresh();
                   }}
                   className="ml-2 font-semibold underline"
                 >

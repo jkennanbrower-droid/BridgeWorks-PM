@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { getPrisma } from "db";
 
@@ -14,11 +14,23 @@ function formatValue(value: unknown) {
 export default async function ApplicationDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: { id: string } | Promise<{ id: string }>;
 }) {
+  const resolvedParams = await Promise.resolve(params);
+  const id = resolvedParams.id;
+  if (!id || id.trim().length === 0) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[console] ApplicationDetailPage missing params.id; redirecting to /console/applications",
+        { params: resolvedParams }
+      );
+    }
+    redirect("/console/applications");
+  }
+
   const prisma = getPrisma();
   const application = await prisma.onboardingApplication.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   if (!application) {

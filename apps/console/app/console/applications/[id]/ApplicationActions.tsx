@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import {
@@ -89,15 +89,18 @@ export function ApplicationActions({
   inviteStatus: string | null;
 }) {
   const router = useRouter();
-  const [approveState, approveAction] = useFormState(
+  const [approveState, approveAction] = useActionState(
     approveAndProvision,
     initialState,
   );
-  const [rejectState, rejectAction] = useFormState(
+  const [rejectState, rejectAction] = useActionState(
     rejectApplication,
     initialState,
   );
-  const [retryState, retryAction] = useFormState(retrySendInvite, initialState);
+  const [retryState, retryAction] = useActionState(
+    retrySendInvite,
+    initialState,
+  );
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
 
   const canApprove = useMemo(() => {

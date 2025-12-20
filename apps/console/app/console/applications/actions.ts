@@ -213,14 +213,15 @@ export async function approveAndProvision(
       error instanceof Error ? error.message : "Failed to provision organization.";
 
     if (pendingInfo) {
+      const { inviteId, applicationId: pendingApplicationId } = pendingInfo;
       try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           await tx.invite.update({
-            where: { id: pendingInfo.inviteId },
+            where: { id: inviteId },
             data: { status: "send_failed" },
           });
           await tx.onboardingApplication.update({
-            where: { id: pendingInfo.applicationId },
+            where: { id: pendingApplicationId },
             data: { status: "provisioning_failed" },
           });
         });

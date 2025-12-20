@@ -22,7 +22,12 @@ const orgBaseUrl = process.env.NEXT_PUBLIC_ORG_APP_URL;
 const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
 const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
 const showMissingWarning = process.env.NODE_ENV !== "production" && isMissingBaseUrl;
-let hasLoggedMissingEnv = false;
+
+if (showMissingWarning) {
+  console.error(
+    "Missing PB_STAFF_BASE_URL / PB_PORTAL_BASE_URL in .env.local. Buttons disabled."
+  );
+}
 
 function joinUrl(baseUrl: string | undefined, path: string) {
   const trimmedBase = baseUrl?.trim();
@@ -111,13 +116,6 @@ const portals: Portal[] = [
 ];
 
 export default function Page() {
-  if (showMissingWarning && !hasLoggedMissingEnv) {
-    console.error(
-      "Missing PB_STAFF_BASE_URL / PB_PORTAL_BASE_URL in .env.local. Buttons disabled."
-    );
-    hasLoggedMissingEnv = true;
-  }
-
   return (
     <main className="min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white">
       <section className={cn(layout.section, "pb-8")}>
@@ -337,8 +335,6 @@ export default function Page() {
             {consoleUrl ? (
               <a
                 href={consoleUrl}
-                target="_blank"
-                rel="noreferrer"
                 className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
               >
                 Founder Console

@@ -1,3 +1,3 @@
 export * from "./prisma";
 
-export type { Prisma } from "@prisma/client";
+export type { Prisma } from "../generated/prisma";
