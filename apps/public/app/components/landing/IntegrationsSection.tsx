@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "../ui/cn";
-import { layout } from "../ui/layout";
+import { layout } from "../ui/layoutTokens";
 
 /*
  * Section: Integrations.

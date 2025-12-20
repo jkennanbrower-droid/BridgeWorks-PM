@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "../ui/cn";
-import { layout } from "../ui/layout";
+import { layout } from "../ui/layoutTokens";
 import { useCtaModal } from "./LandingPageClient";
 
 /*

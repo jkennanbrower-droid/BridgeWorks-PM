@@ -3,14 +3,14 @@
 import type { ReactNode, RefObject } from "react";
 import { useEffect, useId, useRef } from "react";
 import { cn } from "./cn";
-import { layout } from "./layout";
+import { layout } from "./layoutTokens";
 
 type ModalProps = {
   isOpen: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
-  initialFocusRef?: RefObject<HTMLElement>;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 export function Modal({

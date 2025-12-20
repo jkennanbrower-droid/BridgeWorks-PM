@@ -12,7 +12,7 @@ import {
 import { MobileCtaBar } from "./MobileCtaBar";
 import { Modal } from "../ui/Modal";
 import { cn } from "../ui/cn";
-import { layout } from "../ui/layout";
+import { layout } from "../ui/layoutTokens";
 
 type ActiveModal = "demo" | "walkthrough" | null;
 type CtaModalContextValue = {
@@ -58,7 +58,7 @@ export function LandingPageClient({ children }: { children: ReactNode }) {
     <>
       <CtaModalContext.Provider value={contextValue}>
         {children}
-        <MobileCtaBar />
+        <MobileCtaBar onOpenDemo={openDemo} onOpenWalkthrough={openWalkthrough} />
       </CtaModalContext.Provider>
 
       <Modal

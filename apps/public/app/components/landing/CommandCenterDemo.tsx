@@ -3,7 +3,7 @@
 import type { KeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { cn } from "../ui/cn";
-import { layout } from "../ui/layout";
+import { layout } from "../ui/layoutTokens";
 
 type AuditEntry = {
   id: string;

@@ -12,7 +12,7 @@ import { RolePathsSection } from "./components/landing/RolePathsSection";
 import { SecuritySection } from "./components/landing/SecuritySection";
 import { TestimonialsSection } from "./components/landing/TestimonialsSection";
 import { WorkflowSection } from "./components/landing/WorkflowSection";
-import { layout } from "./components/ui/layout";
+import { layout } from "./components/ui/layoutTokens";
 
 export default function Page() {
   return (

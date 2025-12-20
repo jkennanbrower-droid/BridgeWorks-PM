@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { layout } from "./ui/layout";
+import { layout } from "./ui/layoutTokens";
 
 export function NavBar() {
   return (
