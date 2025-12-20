@@ -7,3 +7,11 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+  - type: web
+    name: bridgeworks-org
+    env: node
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/org run build
+    startCommand: corepack pnpm -C apps/org run start
+    envVars:
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"

@@ -1,9 +1,7 @@
-"use client";
-
 import { CommandCenterDemo } from "./CommandCenterDemo";
 import { cn } from "../ui/cn";
 import { layout } from "../ui/layoutTokens";
-import { useCtaModal } from "./LandingPageClient";
+import Link from "next/link";
 
 /*
  * Section: Hero + command center preview.
@@ -12,8 +10,6 @@ import { useCtaModal } from "./LandingPageClient";
  * Layout: layout.section, layout.container, layout.eyebrow, layout.body, layout.bodyMax.
  */
 export function HeroSection() {
-  const { openDemo, openWalkthrough } = useCtaModal();
-
   // EDIT ME: Update hero copy, CTA labels, and micro-trust items.
   const trustItems = [
     // Safe to edit: trust item strings.
@@ -35,20 +31,18 @@ export function HeroSection() {
             configurable workspace that keeps every stakeholder aligned.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={openDemo}
+            <Link
+              href="/get-started"
               className={cn(layout.buttonBase, layout.buttonPrimary)}
             >
-              Try live demo
-            </button>
-            <button
-              type="button"
-              onClick={openWalkthrough}
+              Create Company Account
+            </Link>
+            <Link
+              href="/contact"
               className={cn(layout.buttonBase, layout.buttonSecondary)}
             >
-              Book walkthrough
-            </button>
+              Contact Sales
+            </Link>
           </div>
           <div className="mt-8 flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:flex-wrap">
             {trustItems.map((item) => (

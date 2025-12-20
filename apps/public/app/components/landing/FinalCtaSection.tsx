@@ -1,8 +1,6 @@
-"use client";
-
 import { cn } from "../ui/cn";
 import { layout } from "../ui/layoutTokens";
-import { useCtaModal } from "./LandingPageClient";
+import Link from "next/link";
 
 /*
  * Section: Final CTA.
@@ -11,8 +9,6 @@ import { useCtaModal } from "./LandingPageClient";
  * Layout: layout.sectionTight, layout.card, layout.bodyMax.
  */
 export function FinalCtaSection() {
-  const { openDemo, openWalkthrough } = useCtaModal();
-
   // EDIT ME: Update final CTA copy and labels.
   return (
     <section className={layout.sectionTight}>
@@ -27,20 +23,18 @@ export function FinalCtaSection() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={openDemo}
+            <Link
+              href="/get-started"
               className={cn(layout.buttonBase, layout.buttonPrimary)}
             >
-              Try live demo
-            </button>
-            <button
-              type="button"
-              onClick={openWalkthrough}
+              Create Company Account
+            </Link>
+            <Link
+              href="/contact"
               className={cn(layout.buttonBase, layout.buttonSecondary)}
             >
-              Book walkthrough
-            </button>
+              Contact Sales
+            </Link>
           </div>
         </div>
       </div>
