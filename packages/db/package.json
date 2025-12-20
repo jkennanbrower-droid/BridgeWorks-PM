@@ -8,7 +8,6 @@
     "./prisma": "./src/prisma.ts"
   },
   "scripts": {
-    "postinstall": "prisma generate",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "studio": "prisma studio",
