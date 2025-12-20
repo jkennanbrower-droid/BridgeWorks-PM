@@ -2,7 +2,7 @@ services:
   - type: web
     name: bridgeworks-public
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/public run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/public run build
     startCommand: corepack pnpm -C apps/public run start
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
@@ -18,7 +18,7 @@ services:
   - type: web
     name: bridgeworks-org
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/org run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/org run build
     startCommand: corepack pnpm -C apps/org run start
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
@@ -31,7 +31,7 @@ services:
   - type: web
     name: bridgeworks-console
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/console run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/console run build
     startCommand: corepack pnpm -C apps/console run start
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
@@ -48,7 +48,7 @@ services:
   - type: web
     name: bridgeworks-staff
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/staff run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/staff run build
     startCommand: corepack pnpm -C apps/staff run start
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
@@ -61,7 +61,7 @@ services:
   - type: web
     name: bridgeworks-user
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/user run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/user run build
     startCommand: corepack pnpm -C apps/user run start
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
@@ -74,7 +74,7 @@ services:
   - type: web
     name: bridgeworks-api
     env: node
-    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/api run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/api run build
     startCommand: corepack pnpm -C apps/api run start
     envVars:
       - key: DATABASE_URL
