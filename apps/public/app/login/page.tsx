@@ -21,12 +21,10 @@ const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
 const orgBaseUrl = process.env.NEXT_PUBLIC_ORG_APP_URL;
 const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
 const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
-const showMissingWarning = process.env.NODE_ENV !== "production" && isMissingBaseUrl;
+const showMissingWarning = isMissingBaseUrl;
 
 if (showMissingWarning) {
-  console.error(
-    "Missing PB_STAFF_BASE_URL / PB_PORTAL_BASE_URL in .env.local. Buttons disabled."
-  );
+  console.error("Sign-in base URLs are not configured. Buttons disabled.");
 }
 
 function joinUrl(baseUrl: string | undefined, path: string) {
@@ -134,7 +132,7 @@ export default function Page() {
               </p>
               {showMissingWarning ? (
                 <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                  Missing PB_STAFF_BASE_URL / PB_PORTAL_BASE_URL in .env.local. Buttons disabled.
+                  Sign-in links are not configured yet. Please contact support.
                 </div>
               ) : null}
             </div>
@@ -205,7 +203,7 @@ export default function Page() {
                       aria-disabled="true"
                       className="inline-flex h-11 items-center justify-center rounded-lg bg-slate-200 px-4 text-sm font-semibold text-slate-500 shadow-sm opacity-70 dark:bg-white/10 dark:text-slate-400"
                     >
-                      Continue
+                      Continue (unavailable)
                     </button>
                   )}
                   <Link

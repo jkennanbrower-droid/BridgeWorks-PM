@@ -8,10 +8,10 @@ function stripTrailingSlash(url: string): string {
 }
 
 export default function Page() {
-  const publicBaseUrl = process.env.PB_PUBLIC_BASE_URL;
-  if (!publicBaseUrl) throw new Error("PB_PUBLIC_BASE_URL is not set");
+  const publicBaseUrl =
+    process.env.NEXT_PUBLIC_PUBLIC_APP_URL ?? process.env.PB_PUBLIC_BASE_URL;
 
-  const homeUrl = `${stripTrailingSlash(publicBaseUrl)}/`;
+  const homeUrl = publicBaseUrl ? `${stripTrailingSlash(publicBaseUrl)}/` : "/";
 
   return (
     <AuthBootstrapGate required="staff">

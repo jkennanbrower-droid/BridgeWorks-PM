@@ -2,11 +2,12 @@ import { notFound, redirect } from "next/navigation";
 
 import { getPrisma } from "db";
 
+import { PageHeader } from "../../_components/PageHeader";
 import { ApplicationActions } from "./ApplicationActions";
 
 function formatValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+  if (value === null || value === undefined || value === "") return "N/A";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "N/A";
   if (typeof value === "object") return JSON.stringify(value, null, 2);
   return String(value);
 }
@@ -49,15 +50,10 @@ export default async function ApplicationDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Application
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold">{application.orgName}</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Status: <span className="font-semibold">{application.status}</span>
-        </p>
-      </div>
+      <PageHeader
+        title={application.orgName}
+        subtitle={`Status: ${application.status}`}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
@@ -128,6 +124,20 @@ export default async function ApplicationDetailPage({
         <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
           {formatValue(application.notes)}
         </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Internal Notes
+        </h3>
+        <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
+          {formatValue(application.internalNotes)}
+        </p>
+        {application.lastError ? (
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            Last error: {application.lastError}
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

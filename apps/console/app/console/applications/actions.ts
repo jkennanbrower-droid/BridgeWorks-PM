@@ -4,7 +4,7 @@ import { getPrisma } from "db";
 import type { Prisma } from "db";
 import { revalidatePath } from "next/cache";
 
-import { requirePlatformAdmin } from "../_server/people";
+import { ADMIN_PLATFORM_ROLES, requirePlatformRole } from "../_server/rbac";
 
 type ActionState = {
   ok: boolean;
@@ -68,7 +68,7 @@ export async function approveAndProvision(
 ): Promise<ActionState> {
   let pendingInfo: { applicationId: string; inviteId: string } | null = null;
   try {
-    const actor = await requirePlatformAdmin();
+    const actor = await requirePlatformRole(ADMIN_PLATFORM_ROLES);
     const applicationId = requireApplicationId(formData);
     const prisma = getPrisma();
 
@@ -106,21 +106,22 @@ export async function approveAndProvision(
 
         await tx.invite.update({
           where: { id: existingInvite.id },
-          data: { status: "pending_send", clerkInvitationId: null },
+          data: { status: "pending_send", clerkInvitationId: null, lastError: null },
         });
 
         await tx.onboardingApplication.update({
           where: { id: applicationId },
-          data: { status: "provisioning" },
+          data: { status: "provisioning", lastError: null },
         });
 
         await tx.auditLog.create({
           data: {
             actorPersonId: actor.id,
+            orgId: existingOrg.id,
             action: "retry_invite_send",
             targetType: "organization",
             targetId: existingOrg.id,
-            diffJsonb: {
+            payload: {
               applicationId,
               inviteId: existingInvite.id,
               status: "pending_send",
@@ -156,16 +157,17 @@ export async function approveAndProvision(
 
       await tx.onboardingApplication.update({
         where: { id: applicationId },
-        data: { status: "provisioning" },
+        data: { status: "provisioning", lastError: null },
       });
 
       await tx.auditLog.create({
         data: {
           actorPersonId: actor.id,
+          orgId: org.id,
           action: "approve_provision",
           targetType: "organization",
           targetId: org.id,
-          diffJsonb: {
+          payload: {
             applicationId,
             inviteId: invite.id,
             status: "provisioning",
@@ -186,7 +188,7 @@ export async function approveAndProvision(
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.invite.update({
         where: { id: txnResult.inviteId },
-        data: { status: "sent", clerkInvitationId },
+        data: { status: "sent", clerkInvitationId, sentAt: new Date(), lastError: null },
       });
 
       await tx.onboardingApplication.update({
@@ -195,10 +197,12 @@ export async function approveAndProvision(
           status: "provisioned",
           provisionedOrgId: txnResult.orgId,
           provisionedAt: new Date(),
+          lastError: null,
         },
       });
     });
 
+    revalidatePath("/console");
     revalidatePath("/console/applications");
     revalidatePath(`/console/applications/${applicationId}`);
 
@@ -218,11 +222,11 @@ export async function approveAndProvision(
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           await tx.invite.update({
             where: { id: inviteId },
-            data: { status: "send_failed" },
+            data: { status: "send_failed", lastError: message },
           });
           await tx.onboardingApplication.update({
             where: { id: pendingApplicationId },
-            data: { status: "provisioning_failed" },
+            data: { status: "provisioning_failed", lastError: message },
           });
         });
       } catch {
@@ -246,7 +250,7 @@ export async function rejectApplication(
   formData: FormData,
 ): Promise<ActionState> {
   try {
-    const actor = await requirePlatformAdmin();
+    const actor = await requirePlatformRole(ADMIN_PLATFORM_ROLES);
     const applicationId = requireApplicationId(formData);
     const prisma = getPrisma();
 
@@ -274,11 +278,12 @@ export async function rejectApplication(
           action: "reject_application",
           targetType: "onboarding_application",
           targetId: applicationId,
-          diffJsonb: { status: "rejected" },
+          payload: { status: "rejected" },
         },
       });
     });
 
+    revalidatePath("/console");
     revalidatePath("/console/applications");
     revalidatePath(`/console/applications/${applicationId}`);
 
