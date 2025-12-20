@@ -7,6 +7,8 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: NEXT_PUBLIC_BASE_PATH
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_URL_DIRECT
@@ -14,6 +16,14 @@ services:
       - key: CLERK_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_ORG_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_CONSOLE_APP_URL
         sync: false
   - type: web
     name: bridgeworks-org
@@ -23,9 +33,15 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: NEXT_PUBLIC_BASE_PATH
+        sync: false
       - key: CLERK_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PUBLIC_APP_URL
         sync: false
 
   - type: web
@@ -36,6 +52,8 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: NEXT_PUBLIC_BASE_PATH
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_URL_DIRECT
@@ -43,6 +61,10 @@ services:
       - key: CLERK_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PUBLIC_APP_URL
         sync: false
 
   - type: web
@@ -53,9 +75,15 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: NEXT_PUBLIC_BASE_PATH
+        sync: false
       - key: CLERK_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PUBLIC_APP_URL
         sync: false
 
   - type: web
@@ -66,9 +94,15 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: NEXT_PUBLIC_BASE_PATH
+        sync: false
       - key: CLERK_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PUBLIC_APP_URL
         sync: false
 
   - type: web
@@ -80,4 +114,16 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CLERK_SECRET_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_BASE_URL
+        sync: false
+      - key: R2_UPLOAD_TOKEN
         sync: false
