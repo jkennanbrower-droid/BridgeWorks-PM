@@ -7,6 +7,14 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
   - type: web
     name: bridgeworks-org
     env: node
@@ -15,3 +23,61 @@ services:
     envVars:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+  - type: web
+    name: bridgeworks-console
+    env: node
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/console run build
+    startCommand: corepack pnpm -C apps/console run start
+    envVars:
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+  - type: web
+    name: bridgeworks-staff
+    env: node
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/staff run build
+    startCommand: corepack pnpm -C apps/staff run start
+    envVars:
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+  - type: web
+    name: bridgeworks-user
+    env: node
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/user run build
+    startCommand: corepack pnpm -C apps/user run start
+    envVars:
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+  - type: web
+    name: bridgeworks-api
+    env: node
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm -C apps/api run build
+    startCommand: corepack pnpm -C apps/api run start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false

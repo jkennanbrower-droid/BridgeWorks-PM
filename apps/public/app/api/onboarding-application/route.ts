@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         contactName: contactName || null,
         contactEmail,
         contactPhone: contactPhone || null,
-        portfolioTypes: portfolioTypes.length > 0 ? portfolioTypes : null,
+          portfolioTypes: portfolioTypes.length > 0 ? portfolioTypes : undefined,
         approxProperties,
         approxUnits,
         currentSoftware,

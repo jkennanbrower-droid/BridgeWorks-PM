@@ -9,15 +9,21 @@ const repoRoot = path.join(__dirname, "..", "..");
 dotenv.config({ path: path.join(repoRoot, ".env.local") });
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
-const directUrl = process.env.DATABASE_URL_DIRECT;
-if (!directUrl) {
-  throw new Error("DATABASE_URL_DIRECT is not set");
+const configuredUrl =
+  process.env.DATABASE_URL_DIRECT ??
+  process.env.DATABASE_URL ??
+  "postgresql://postgres:postgres@localhost:5432/postgres?schema=public";
+
+if (!process.env.DATABASE_URL_DIRECT && !process.env.DATABASE_URL) {
+  console.warn(
+    "[packages/db] DATABASE_URL_DIRECT (or DATABASE_URL) is not set; using a placeholder URL for Prisma config. Migrations/seed will fail until real env vars are provided.",
+  );
 }
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: { path: "prisma/migrations" },
   datasource: {
-    url: directUrl,
+    url: configuredUrl,
   },
 });
