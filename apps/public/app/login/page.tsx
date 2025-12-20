@@ -1,4 +1,5 @@
 export const metadata = { title: "Sign In" };
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
@@ -15,11 +16,8 @@ export default function Page() {
   const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
   const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
 
-  if (!staffBaseUrl) throw new Error("PB_STAFF_BASE_URL is not set");
-  if (!portalBaseUrl) throw new Error("PB_PORTAL_BASE_URL is not set");
-
-  const staffUrl = joinUrl(staffBaseUrl, "/");
-  const portalUrl = joinUrl(portalBaseUrl, "/");
+  const staffUrl = staffBaseUrl ? joinUrl(staffBaseUrl, "/") : null;
+  const portalUrl = portalBaseUrl ? joinUrl(portalBaseUrl, "/") : null;
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
@@ -35,23 +33,32 @@ export default function Page() {
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link
-            href={staffUrl}
-            prefetch={false}
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-500/90 dark:focus-visible:ring-offset-black"
-          >
-            Staff login
-          </Link>
-          <Link
-            href={portalUrl}
-            prefetch={false}
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-black/10 bg-white px-5 text-sm font-semibold text-slate-900 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/15 dark:bg-slate-950 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-black"
-          >
-            User Login
-          </Link>
+          {staffUrl ? (
+            <Link
+              href={staffUrl}
+              prefetch={false}
+              className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-500/90 dark:focus-visible:ring-offset-black"
+            >
+              Staff login
+            </Link>
+          ) : null}
+          {portalUrl ? (
+            <Link
+              href={portalUrl}
+              prefetch={false}
+              className="inline-flex h-11 items-center justify-center rounded-lg border border-black/10 bg-white px-5 text-sm font-semibold text-slate-900 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/15 dark:bg-slate-950 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-black"
+            >
+              User Login
+            </Link>
+          ) : null}
         </div>
+        {!staffUrl || !portalUrl ? (
+          <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">
+            Login destinations are not configured yet. Set
+            {" PB_STAFF_BASE_URL "}and{" PB_PORTAL_BASE_URL "}to enable sign-in links.
+          </p>
+        ) : null}
       </div>
     </div>
   );
 }
-
