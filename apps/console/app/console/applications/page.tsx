@@ -10,7 +10,13 @@ const STATUS_TABS = [
   { value: "provisioned", label: "Provisioned" },
   { value: "rejected", label: "Rejected" },
   { value: "provisioning_failed", label: "Failed" },
-];
+] as const;
+
+type ApplicationStatusTab = (typeof STATUS_TABS)[number]["value"];
+
+function isApplicationStatusTab(value: string): value is ApplicationStatusTab {
+  return STATUS_TABS.some((tab) => tab.value === value);
+}
 
 export default async function ApplicationsPage({
   searchParams,
@@ -19,7 +25,7 @@ export default async function ApplicationsPage({
 }) {
   const statusParam =
     typeof searchParams?.status === "string" ? searchParams.status : "submitted";
-  const activeStatus = STATUS_TABS.some((tab) => tab.value === statusParam)
+  const activeStatus: ApplicationStatusTab = isApplicationStatusTab(statusParam)
     ? statusParam
     : "submitted";
 

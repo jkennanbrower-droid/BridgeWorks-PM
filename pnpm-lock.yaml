@@ -311,7 +311,7 @@ importers:
         specifier: ^8.15.5
         version: 8.16.0
       prisma:
-        specifier: ^7.1.0
+        specifier: ^7.2.0
         version: 7.2.0(@types/react@19.2.7)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.9.3)
       tsx:
         specifier: ^4.19.2

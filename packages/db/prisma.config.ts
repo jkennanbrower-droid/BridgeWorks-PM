@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { defineConfig } from "prisma/config";
 
+process.env.PRISMA_COPY_RUNTIME_SOURCEMAPS ??= "1";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, "..", "..");
 

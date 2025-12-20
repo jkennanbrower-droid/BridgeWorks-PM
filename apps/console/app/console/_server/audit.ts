@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getPrisma } from "db";
+import { getPrisma, type Prisma } from "db";
 
 type AuditEntry = {
   actorPersonId: string;
@@ -8,7 +8,7 @@ type AuditEntry = {
   targetType: string;
   targetId: string;
   orgId?: string | null;
-  payload?: Record<string, unknown> | null;
+  payload?: Prisma.InputJsonValue | null;
   ip?: string | null;
   userAgent?: string | null;
 };

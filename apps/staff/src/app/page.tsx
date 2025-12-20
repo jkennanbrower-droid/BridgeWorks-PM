@@ -3,6 +3,8 @@ import { UserButton } from "@clerk/nextjs";
 
 import { AuthBootstrapGate } from "../components/AuthBootstrapGate";
 
+export const dynamic = "force-dynamic";
+
 function stripTrailingSlash(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }

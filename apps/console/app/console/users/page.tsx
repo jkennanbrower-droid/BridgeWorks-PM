@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPrisma } from "db";
 
 import { PageHeader } from "../_components/PageHeader";
+import { InviteUserDialog } from "./InviteUserDialog";
 
 export default async function UsersPage() {
   const prisma = getPrisma();
@@ -16,11 +17,7 @@ export default async function UsersPage() {
       <PageHeader
         title="Users"
         subtitle="Manage platform staff and org membership access."
-        actions={
-          <button className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300">
-            Invite user
-          </button>
-        }
+        actions={<InviteUserDialog />}
       />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

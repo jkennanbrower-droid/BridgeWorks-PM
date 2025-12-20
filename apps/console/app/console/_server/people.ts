@@ -2,15 +2,17 @@ import "server-only";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { unstable_noStore as noStore } from "next/cache";
-import { getPrisma } from "db";
+import { getPrisma, type PlatformRole } from "db";
 
-const PLATFORM_ROLES = new Set([
+const PLATFORM_ROLES = [
   "founder",
   "platform_admin",
   "support_admin",
   "support_agent",
   "auditor",
-]);
+ ] as const satisfies ReadonlyArray<PlatformRole>;
+
+const PLATFORM_ROLE_SET = new Set<PlatformRole>(PLATFORM_ROLES);
 
 function parseAllowlist(raw: string | undefined): Set<string> {
   if (!raw) return new Set();
@@ -42,8 +44,8 @@ function resolvePlatformRole({
   email: string;
   user: Awaited<ReturnType<typeof currentUser>>;
   allowlist: Set<string>;
-  existingRole: string | null | undefined;
-}) {
+  existingRole: PlatformRole | null | undefined;
+}): PlatformRole | null {
   if (allowlist.has(email)) {
     return "founder";
   }
@@ -52,11 +54,11 @@ function resolvePlatformRole({
     user && typeof user.publicMetadata?.platform_role === "string"
       ? user.publicMetadata.platform_role
       : null;
-  if (metadataRole && PLATFORM_ROLES.has(metadataRole)) {
-    return metadataRole;
+  if (metadataRole && PLATFORM_ROLE_SET.has(metadataRole as PlatformRole)) {
+    return metadataRole as PlatformRole;
   }
 
-  if (existingRole && PLATFORM_ROLES.has(existingRole)) {
+  if (existingRole && PLATFORM_ROLE_SET.has(existingRole)) {
     return existingRole;
   }
 
@@ -140,7 +142,7 @@ export async function requirePlatformAdmin() {
   if (!person) {
     throw new Error("Not authenticated.");
   }
-  if (!person.platformRole || !PLATFORM_ROLES.has(person.platformRole)) {
+  if (!person.platformRole || !PLATFORM_ROLE_SET.has(person.platformRole)) {
     throw new Error("Not authorized for console access.");
   }
   return person;
