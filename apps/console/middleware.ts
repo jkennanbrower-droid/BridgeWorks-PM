@@ -9,9 +9,12 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware((auth, req) => {
-  if (isPublicRoute(req)) return;
-  auth().protect();
-  return NextResponse.next();
+  if (!isPublicRoute(req)) {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.redirect(new URL("/sign-in/console", req.url));
+    }
+  }
 });
 
 export const config = {

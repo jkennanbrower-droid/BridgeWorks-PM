@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/elements": "^0.24.2",
     "@clerk/nextjs": "^6.36.5",
     "db": "file:../../packages/db",
     "next": "16.0.10",

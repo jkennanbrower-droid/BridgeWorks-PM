@@ -14,10 +14,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className="antialiased font-sans">{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body className="antialiased font-sans">
+        <ClerkProvider
+          signInUrl="/sign-in/console"
+          afterSignInUrl="/console"
+          afterSignUpUrl="/console"
+        >
+          {children}
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }

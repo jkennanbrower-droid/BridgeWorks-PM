@@ -18,6 +18,7 @@ type Portal = {
 
 const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
 const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
+const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
 const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
 const showMissingWarning = process.env.NODE_ENV !== "production" && isMissingBaseUrl;
 let hasLoggedMissingEnv = false;
@@ -34,6 +35,7 @@ function joinUrl(baseUrl: string | undefined, path: string) {
 const userUrl = joinUrl(portalBaseUrl, "/sign-in");
 const staffUrl = joinUrl(staffBaseUrl, "/sign-in");
 const ownerUrl = joinUrl(staffBaseUrl, "/sign-in");
+const consoleUrl = joinUrl(consoleBaseUrl, "/sign-in/console");
 
 const portals: Portal[] = [
   {
@@ -330,6 +332,14 @@ export default function Page() {
             >
               Support
             </Link>
+            {consoleUrl ? (
+              <Link
+                href={consoleUrl}
+                className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
+              >
+                Founder Console
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>

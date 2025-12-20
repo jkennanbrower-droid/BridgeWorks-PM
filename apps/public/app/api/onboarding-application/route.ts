@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getPrisma } from "db";
 
 const PORTFOLIO_TYPES = new Set([
@@ -103,9 +104,6 @@ export async function POST(request: Request) {
         .map((value) => toTrimmedString(value))
         .filter((value) => PORTFOLIO_TYPES.has(value))
     : [];
-  const portfolioTypesJson =
-    portfolioTypes.length > 0 ? JSON.stringify(portfolioTypes) : null;
-
   const currentSoftwareRaw = toTrimmedString(
     (payload as Record<string, unknown>).currentSoftware
   );
@@ -117,43 +115,31 @@ export async function POST(request: Request) {
 
   try {
     const prisma = getPrisma();
-    const rows = await prisma.$queryRaw<{ id: string }[]>`
-      INSERT INTO onboarding_applications (
-        org_name,
-        contact_name,
-        contact_email,
-        contact_phone,
-        portfolio_types,
-        approx_properties,
-        approx_units,
-        current_software,
-        notes
-      ) VALUES (
-        ${orgName},
-        ${contactName || null},
-        ${contactEmail},
-        ${contactPhone || null},
-        ${portfolioTypesJson}::jsonb,
-        ${approxProperties},
-        ${approxUnits},
-        ${currentSoftware},
-        ${notes || null}
-      )
-      RETURNING id;
-    `;
+    const created = await prisma.onboardingApplication.create({
+      data: {
+        id: randomUUID(),
+        orgName,
+        contactName: contactName || null,
+        contactEmail,
+        contactPhone: contactPhone || null,
+        portfolioTypes: portfolioTypes.length > 0 ? portfolioTypes : null,
+        approxProperties,
+        approxUnits,
+        currentSoftware,
+        notes: notes || null,
+      },
+    });
 
-    const id = rows?.[0]?.id;
-    if (!id) {
-      return NextResponse.json(
-        { error: "Unable to create application." },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ id });
+    return NextResponse.json({ id: created.id });
   } catch (error) {
+    console.error("onboarding-application submit failed", error);
     return NextResponse.json(
-      { error: "Unable to submit application right now." },
+      {
+        error:
+          process.env.NODE_ENV === "development"
+            ? `Unable to submit application right now. ${error instanceof Error ? error.message : ""}`
+            : "Unable to submit application right now.",
+      },
       { status: 500 }
     );
   }
