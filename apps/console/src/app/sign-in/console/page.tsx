@@ -31,17 +31,17 @@ export default function ConsoleSignInPage() {
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SignIn.Root path="/sign-in/console">
+          <SignIn.Root path="/sign-in/console" routing="path">
             <Clerk.GlobalError className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" />
             <SignIn.Step name="start" className="space-y-4">
-              <Clerk.Field name="identifier" className="grid gap-2">
+              <Clerk.Field name="identifier" alwaysShow className="grid gap-2">
                 <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Email
                 </Clerk.Label>
                 <Clerk.Input className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20" />
                 <Clerk.FieldError className="text-xs text-rose-600" />
               </Clerk.Field>
-              <Clerk.Field name="password" className="grid gap-2">
+              <Clerk.Field name="password" alwaysShow className="grid gap-2">
                 <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Password
                 </Clerk.Label>
