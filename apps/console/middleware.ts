@@ -8,13 +8,15 @@ const isPublicRoute = createRouteMatcher([
   "/api/ready",
 ]);
 
-export default clerkMiddleware((auth, req) => {
+export default clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.redirect(new URL("/sign-in/console", req.url));
     }
   }
+
+  return NextResponse.next();
 });
 
 export const config = {
