@@ -2,7 +2,7 @@
 
 A modern project management platform built with Next.js, Express, and PostgreSQL.
 
-## 🚀 Quick Start
+## ? Quick Start
 
 ### Prerequisites
 - Node.js 22.x
@@ -13,9 +13,18 @@ A modern project management platform built with Next.js, Express, and PostgreSQL
 ### Setup
 
 1. **Install dependencies**
-   ```bash
-   pnpm install
    ```
+BridgeWorks-PM/
+|-- apps/
+|   |-- api/          # Express.js API server
+|   |-- public/       # Next.js public-facing app
+|   |-- staff/        # Next.js staff portal
+|   `-- user/         # Next.js user portal
+|-- packages/
+|   |-- db/           # Prisma database schema and client
+|   `-- shared/       # Shared utilities and types
+`-- docs/             # Additional documentation
+```
 
 2. **Configure environment variables**
    ```bash
@@ -46,22 +55,22 @@ A modern project management platform built with Next.js, Express, and PostgreSQL
    pnpm run dev:api     # Port 3103
    ```
 
-## 📁 Project Structure
+## ? Project Structure
 
 ```
 BridgeWorks-PM/
-├── apps/
-│   ├── api/          # Express.js API server
-│   ├── public/       # Next.js public-facing app
-│   ├── staff/        # Next.js staff portal
-│   └── user/         # Next.js user portal
-├── packages/
-│   ├── db/           # Prisma database schema and client
-│   └── shared/       # Shared utilities and types
-└── docs/             # Additional documentation
+|-- apps/
+|   |-- api/          # Express.js API server
+|   |-- public/       # Next.js public-facing app
+|   |-- staff/        # Next.js staff portal
+|   `-- user/         # Next.js user portal
+|-- packages/
+|   |-- db/           # Prisma database schema and client
+|   `-- shared/       # Shared utilities and types
+`-- docs/             # Additional documentation
 ```
 
-## 🏗️ Architecture
+## ?? Architecture
 
 This is a **monorepo** using pnpm workspaces with:
 - **3 Next.js applications** (public, staff, user)
@@ -70,20 +79,20 @@ This is a **monorepo** using pnpm workspaces with:
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
 
-## 🔒 Security
+## ? Security
 
 - Never commit `.env.local` or files containing secrets
 - Use `.env.local.template` as a reference
 - See [SECURITY.md](./SECURITY.md) for complete security guidelines
 
-## 📚 Documentation
+## ? Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture and design
 - [SECURITY.md](./SECURITY.md) - Security guidelines and best practices
 - [CLEANUP_SUMMARY.md](./CLEANUP_SUMMARY.md) - Recent cleanup and security audit results
 - [docs/local-dev.md](./docs/local-dev.md) - Local development setup
 
-## 🛠️ Available Scripts
+## ?? Available Scripts
 
 ### Development
 - `pnpm run dev:all` - Start all Next.js apps
@@ -99,12 +108,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation
 - `pnpm run build:user` - Build user app
 - `pnpm run build:api` - Build API
 
-### Database
-- `pnpm run db:migrate` - Run database migrations
-- `pnpm run db:generate` - Generate Prisma client
-- `pnpm run db:studio` - Open Prisma Studio
-
-## 🌐 Technology Stack
+## ? Technology Stack
 
 ### Frontend
 - React 19.2.1
@@ -123,18 +127,18 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation
 - pnpm workspaces (monorepo)
 - Caddy (reverse proxy for local dev)
 
-## 🤝 Contributing
+## ? Contributing
 
 1. Create a feature branch
 2. Make your changes
 3. Ensure all apps build successfully
 4. Submit a pull request
 
-## 📄 License
+## ? License
 
 ISC
 
-## 🔗 Links
+## ? Links
 
 - [GitHub Repository](https://github.com/jkennanbrower-droid/BridgeWorks-PM)
 
@@ -150,7 +154,7 @@ Note: the build script forces installing `devDependencies` (`pnpm install --prod
 If the site renders but looks completely unstyled, check the browser network tab for failed requests to `/_next/static/...` (CSS/JS). This usually means you're serving the app under a path prefix (or a proxy rewrite is breaking `/_next/*`).
 
 - **Serving under a sub-path**: set `NEXT_PUBLIC_BASE_PATH` (example: `/portal`) and redeploy so assets load from `/portal/_next/...`.
-- **Using Cloudflare proxy**: purge Cloudflare cache (or at least `/_next/static/*`) after a failed deploy; Cloudflare can cache a 404 for a chunk URL and keep serving “unstyled” pages until the cache is cleared.
+- **Using Cloudflare proxy**: purge Cloudflare cache (or at least `/_next/static/*`) after a failed deploy; Cloudflare can cache a 404 for a chunk URL and keep serving ?unstyled? pages until the cache is cleared.
 
 An example blueprint is included at `render.yaml`.
 

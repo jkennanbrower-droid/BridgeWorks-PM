@@ -27,10 +27,11 @@
     "dev:user": "dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102",
     "dev:api": "dotenv -e .env.local -- cross-env PORT=3103 npm -w apps/api run dev",
     "dev:all": "concurrently -k \"dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100\" \"dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101\" \"dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102\"",
-    "dev:all:with-api": "concurrently -k \"dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100\" \"dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101\" \"dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102\" \"dotenv -e .env.local -- cross-env PORT=3103 npm -w apps/api run dev\"",
-    "db:migrate": "pnpm --dir packages/db exec prisma migrate dev",
+    "dev:all:with-api": "concurrently -k \"dotenv -e .env.local -- npm -w apps/public run dev -- -p 3100\" \"dotenv -e .env.local -- npm -w apps/staff run dev -- -p 3101\" \"dotenv -e .env.local -- npm -w apps/user run dev -- -p 3102\" \"dotenv -e .env.local -- cross-env PORT=3103 npm -w apps/api run dev\""
+    ,"db:migrate": "pnpm --dir packages/db exec prisma migrate dev",
     "db:generate": "pnpm --dir packages/db exec prisma generate",
-    "db:studio": "pnpm --dir packages/db exec prisma studio"
+    "db:studio": "pnpm --dir packages/db exec prisma studio",
+    "db:seed": "pnpm --dir packages/db run seed"
   },
   "repository": {
     "type": "git",
@@ -55,8 +56,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.879.0",
-    "dotenv": "^17.2.3",
-    "pg": "^8.16.3"
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

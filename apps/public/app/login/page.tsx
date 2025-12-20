@@ -1,64 +1,107 @@
 export const metadata = { title: "Sign In" };
-export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
-function stripTrailingSlash(url: string): string {
-  return url.endsWith("/") ? url.slice(0, -1) : url;
+import { cn } from "../components/ui/cn";
+import { layout } from "../components/ui/layoutTokens";
+
+const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
+const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
+const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
+const showMissingWarning = process.env.NODE_ENV !== "production" && isMissingBaseUrl;
+
+function joinUrl(baseUrl: string, path: string) {
+  const trimmedBase = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${trimmedBase}${normalizedPath}`;
 }
 
-function joinUrl(baseUrl: string, path: string): string {
-  if (!path.startsWith("/")) path = `/${path}`;
-  return `${stripTrailingSlash(baseUrl)}${path}`;
-}
+const staffUrl = staffBaseUrl ? joinUrl(staffBaseUrl, "/sign-in") : undefined;
+const portalUrl = portalBaseUrl ? joinUrl(portalBaseUrl, "/sign-in") : undefined;
+
+const portals = [
+  {
+    label: "Resident Portal",
+    title: "Resident sign-in",
+    description: "Access maintenance updates, payments, and community notices.",
+    href: portalUrl,
+  },
+  {
+    label: "Staff Portal",
+    title: "Staff sign-in",
+    description: "Manage work orders, leasing, and resident communications.",
+    href: staffUrl,
+  },
+  {
+    label: "BridgeWorks Console",
+    title: "Console sign-in",
+    description: "Org-level oversight, analytics, and configuration tools.",
+    href: staffUrl,
+  },
+];
 
 export default function Page() {
-  const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
-  const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
-
-  const staffUrl = staffBaseUrl ? joinUrl(staffBaseUrl, "/") : null;
-  const portalUrl = portalBaseUrl ? joinUrl(portalBaseUrl, "/") : null;
-
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-16 sm:py-20">
-      <div className="max-w-2xl">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-          Sign In
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-          Choose your login
-        </h1>
-        <p className="mt-3 text-base leading-7 text-slate-700 dark:text-slate-200">
-          Select Staff or User to continue.
-        </p>
+    <main className="min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white">
+      <section className={layout.section}>
+        <div className={layout.container}>
+          <div className="max-w-2xl">
+            <p className={layout.eyebrow}>Sign In</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+              Choose your portal
+            </h1>
+            <p className={cn(layout.body, "mt-3")}>
+              Pick the experience that matches your role to continue.
+            </p>
+            {showMissingWarning ? (
+              <p className={cn(layout.body, "mt-3 text-amber-600 dark:text-amber-400")}>
+                Missing PB_STAFF_BASE_URL or PB_PORTAL_BASE_URL. Set them in .env.local to
+                enable sign-in routing.
+              </p>
+            ) : null}
+          </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          {staffUrl ? (
-            <Link
-              href={staffUrl}
-              prefetch={false}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-500/90 dark:focus-visible:ring-offset-black"
-            >
-              Staff login
-            </Link>
-          ) : null}
-          {portalUrl ? (
-            <Link
-              href={portalUrl}
-              prefetch={false}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-black/10 bg-white px-5 text-sm font-semibold text-slate-900 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/15 dark:bg-slate-950 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-black"
-            >
-              User Login
-            </Link>
-          ) : null}
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {portals.map((portal) => (
+              portal.href ? (
+                <Link
+                  key={portal.title}
+                  href={portal.href}
+                  className={cn(layout.card, "group transition hover:-translate-y-0.5")}
+                >
+                  <p className={layout.label}>{portal.label}</p>
+                  <h2 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">
+                    {portal.title}
+                  </h2>
+                  <p className={cn(layout.body, "mt-2")}>{portal.description}</p>
+                  <div className="mt-6 inline-flex items-center text-sm font-semibold text-teal-700 group-hover:text-teal-600 dark:text-teal-400 dark:group-hover:text-teal-300">
+                    Continue
+                  </div>
+                </Link>
+              ) : (
+                <div
+                  key={portal.title}
+                  className={cn(
+                    layout.card,
+                    "group cursor-not-allowed opacity-60"
+                  )}
+                  aria-disabled="true"
+                >
+                  <p className={layout.label}>{portal.label}</p>
+                  <h2 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">
+                    {portal.title}
+                  </h2>
+                  <p className={cn(layout.body, "mt-2")}>{portal.description}</p>
+                  <div className="mt-6 inline-flex items-center text-sm font-semibold text-teal-700 dark:text-teal-400">
+                    Continue
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
         </div>
-        {!staffUrl || !portalUrl ? (
-          <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">
-            Login destinations are not configured yet. Set
-            {" PB_STAFF_BASE_URL "}and{" PB_PORTAL_BASE_URL "}to enable sign-in links.
-          </p>
-        ) : null}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

@@ -207,4 +207,3 @@ qs("autoRefresh").addEventListener("change", (e) => setAutoRefresh(Boolean(e.tar
 
 setAutoRefresh(true);
 refresh();
-

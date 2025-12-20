@@ -6,15 +6,15 @@ This is a monorepo using **pnpm workspaces** with multiple applications and shar
 
 ```
 BridgeWorks-PM/
-├── apps/
-│   ├── api/          # Express.js API server
-│   ├── public/       # Next.js public-facing app
-│   ├── staff/        # Next.js staff portal
-│   └── user/         # Next.js user portal
-├── packages/
-│   ├── db/           # Prisma database schema and client
-│   └── shared/       # Shared utilities and types
-└── docs/            # Documentation
+|-- apps/
+|   |-- api/          # Express.js API server
+|   |-- public/       # Next.js public-facing app
+|   |-- staff/        # Next.js staff portal
+|   `-- user/         # Next.js user portal
+|-- packages/
+|   |-- db/           # Prisma database schema and client
+|   `-- shared/       # Shared utilities and types
+`-- docs/            # Documentation
 ```
 
 ## Applications
@@ -39,7 +39,6 @@ BridgeWorks-PM/
 - **Features**:
   - Marketing pages
   - R2 file upload functionality
-  - Database health checks
   - Tailwind CSS v4
 
 **API Routes**:
@@ -75,8 +74,7 @@ BridgeWorks-PM/
 - Prisma ORM setup
 - Database migrations
 - Shared database client
-- Connection pooling utilities
-- Schema includes: User, Project, Task, Milestone, Issue, Comment, Notification
+- Schema: currently empty (fresh setup)
 
 ### `packages/shared`
 - Common TypeScript utilities
@@ -127,11 +125,6 @@ pnpm run dev:staff          # Port 3101
 pnpm run dev:user           # Port 3102
 pnpm run dev:api            # Port 3103
 
-# Database
-pnpm run db:migrate         # Run migrations
-pnpm run db:generate        # Generate Prisma client
-pnpm run db:studio          # Open Prisma Studio
-
 # Production builds
 pnpm run build:api
 pnpm run build:public
@@ -167,11 +160,11 @@ pnpm run build:staff
 - Simplified dependency management
 
 ### Current State
-- ✅ Well-structured monorepo
-- ✅ Database and R2 integration working
-- ⚠️  Staff and User apps are minimal placeholders
-- ⚠️  No authentication/authorization implemented yet
-- ⚠️  No routing between apps (requires Caddy or similar)
+- ? Well-structured monorepo
+- ? R2 integration working
+- ??  Staff and User apps are minimal placeholders
+- ??  No authentication/authorization implemented yet
+- ??  No routing between apps (requires Caddy or similar)
 
 ## Future Considerations
 

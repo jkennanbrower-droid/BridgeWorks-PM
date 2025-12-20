@@ -1,31 +1,26 @@
 {
   "name": "db",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./pool": "./src/pool.ts",
-    "./prisma": "./src/prisma.ts",
-    "./ready": "./src/ready.ts"
+    "./prisma": "./src/prisma.ts"
   },
   "scripts": {
-    "seed": "tsx prisma/seed.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.1.0",
-    "@prisma/client": "^7.1.0",
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.2.0",
     "pg": "^8.16.3"
   },
   "devDependencies": {
-    "@types/node": "^25.0.3",
-    "@types/pg": "^8.16.0",
     "prisma": "^7.1.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }
 }

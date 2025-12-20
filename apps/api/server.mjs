@@ -7,6 +7,7 @@ import express from "express";
 import multer from "multer";
 import pg from "pg";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createClerkClient, verifyToken } from "@clerk/backend";
 
 function loadDotEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -56,20 +57,9 @@ app.use((req, res, next) => {
     res.setHeader("Vary", "Origin");
   }
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Upload-Token");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Upload-Token, Authorization");
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
-});
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DATABASE_URL is not set");
-
-const pool = new pg.Pool({
-  connectionString,
-  ssl:
-    connectionString.includes("sslmode=require") || connectionString.includes(".neon.tech")
-      ? { rejectUnauthorized: false }
-      : undefined,
 });
 
 function addAlias(pathA, pathB, handler) {
@@ -151,8 +141,18 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(staticDir, "index.html"));
 });
 
-// Keep these endpoints working EXACTLY as before:
 app.get("/health", (req, res) => res.json({ ok: true }));
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set");
+
+const pool = new pg.Pool({
+  connectionString,
+  ssl:
+    connectionString.includes("sslmode=require") || connectionString.includes(".neon.tech")
+      ? { rejectUnauthorized: false }
+      : undefined,
+});
 
 app.get("/health/db", async (req, res) => {
   try {
@@ -347,6 +347,14 @@ function checkUploadToken(req) {
   return null;
 }
 
+function getBearerToken(req) {
+  const raw = req.headers.authorization;
+  if (!raw) return null;
+  const [type, token] = raw.split(" ");
+  if (type !== "Bearer" || !token) return null;
+  return token.trim();
+}
+
 function sanitizeFilename(name) {
   return String(name || "upload.bin")
     .replaceAll("\\", "_")
@@ -401,6 +409,99 @@ addAlias("/r2-upload", "/api/r2-upload", (req, res) => {
         .json({ ok: false, error: e instanceof Error ? e.message : "Upload failed." });
     }
   });
+});
+
+addAlias("/auth/bootstrap", "/api/auth/bootstrap", async (req, res) => {
+  noStore(res);
+
+  const token = getBearerToken(req);
+  if (!token) return res.status(401).json({ ok: false, error: "Unauthorized" });
+
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) return res.status(500).json({ ok: false, error: "CLERK_SECRET_KEY is not set" });
+
+  let sessionClaims;
+  try {
+    sessionClaims = await verifyToken(token, { secretKey });
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+
+  const clerkUserId = sessionClaims?.sub;
+  if (!clerkUserId) return res.status(401).json({ ok: false, error: "Unauthorized" });
+
+  const clerkClient = createClerkClient({ secretKey });
+  let email =
+    sessionClaims?.email ??
+    sessionClaims?.email_address ??
+    sessionClaims?.primary_email_address ??
+    null;
+
+  if (!email) {
+    try {
+      const user = await clerkClient.users.getUser(clerkUserId);
+      const primaryEmail = user.emailAddresses.find(
+        (entry) => entry.id === user.primaryEmailAddressId
+      );
+      email = primaryEmail?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress ?? null;
+    } catch (e) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+  }
+
+  if (!email) return res.status(400).json({ ok: false, error: "Missing email" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const now = new Date();
+
+  let userRow = null;
+  try {
+    const existing = await pool.query(
+      'SELECT id, email FROM "User" WHERE email = $1 LIMIT 1',
+      [normalizedEmail]
+    );
+
+    if (existing.rows.length > 0) {
+      userRow = existing.rows[0];
+      await pool.query(
+        'UPDATE "User" SET "lastLoginAt" = $2, "updatedAt" = $2 WHERE id = $1',
+        [userRow.id, now]
+      );
+    } else {
+      const newId = crypto.randomUUID();
+      const insert = await pool.query(
+        'INSERT INTO "User" (id, email, status, "lastLoginAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $4, $4) RETURNING id, email',
+        [newId, normalizedEmail, "ACTIVE", now]
+      );
+      userRow = insert.rows[0];
+    }
+
+    await pool.query(
+      'INSERT INTO "AuthAccount" (provider, "providerAccountId", "userId", "lastUsedAt") VALUES ($1, $2, $3, $4) ON CONFLICT (provider, "providerAccountId") DO UPDATE SET "userId" = EXCLUDED."userId", "lastUsedAt" = EXCLUDED."lastUsedAt"',
+      ["CLERK", clerkUserId, userRow.id, now]
+    );
+
+    const staffCheck = await pool.query(
+      'SELECT EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = $1) AS "isStaff"',
+      [userRow.id]
+    );
+    const tenantCheck = await pool.query(
+      'SELECT EXISTS (SELECT 1 FROM "Tenancy" WHERE "userId" = $1) AS "isTenant"',
+      [userRow.id]
+    );
+
+    return res.json({
+      ok: true,
+      clerkUserId,
+      user: { id: userRow.id, email: userRow.email },
+      access: {
+        isStaff: Boolean(staffCheck.rows[0]?.isStaff),
+        isTenant: Boolean(tenantCheck.rows[0]?.isTenant),
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 const port = process.env.PORT || 3103;
