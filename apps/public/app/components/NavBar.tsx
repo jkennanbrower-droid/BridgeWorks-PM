@@ -1,0 +1,28 @@
+import Link from "next/link";
+
+import { layout } from "./ui/layout";
+
+export function NavBar() {
+  return (
+    <header className="border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-black/70">
+      <div className={layout.container}>
+        <div className="flex h-16 items-center justify-between gap-4">
+          <Link
+            href="/"
+            className="rounded-lg text-sm font-semibold tracking-tight text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-white dark:focus-visible:ring-offset-black"
+            aria-label="BridgeWorks PM Home"
+          >
+            BridgeWorks PM
+          </Link>
+
+          <Link
+            href="/login"
+            className={`${layout.buttonBase} ${layout.buttonSecondary}`}
+          >
+            Login
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}

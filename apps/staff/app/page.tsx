@@ -4,7 +4,7 @@ function stripTrailingSlash(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
-export default function Home() {
+export default function Page() {
   const publicBaseUrl = process.env.PB_PUBLIC_BASE_URL;
   if (!publicBaseUrl) throw new Error("PB_PUBLIC_BASE_URL is not set");
 
