@@ -3,20 +3,12 @@ export default function Page() {
     <main className="grid min-h-screen place-items-center bg-white text-black dark:bg-black dark:text-white">
       <div className="flex flex-col items-center gap-4 text-center">
         <h1 className="text-4xl font-semibold tracking-tight">
-          BridgeWorks Internal Console
+          BridgeWorks Console
         </h1>
         <p className="text-base text-slate-600 dark:text-slate-300">
-          BridgeWorks platform access only.
+          Internal console access landing.
         </p>
       </div>
-      <footer className="absolute bottom-6 text-sm text-slate-600 dark:text-slate-300">
-        <a
-          href="/landing"
-          className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
-        >
-          Console sign-in
-        </a>
-      </footer>
     </main>
   );
 }
