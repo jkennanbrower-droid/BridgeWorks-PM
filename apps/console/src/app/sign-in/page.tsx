@@ -2,6 +2,7 @@
 
 import * as Clerk from "@clerk/elements/common";
 import * as SignIn from "@clerk/elements/sign-in";
+import { Suspense } from "react";
 
 export default function SignInPage() {
   return (
@@ -19,7 +20,8 @@ export default function SignInPage() {
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SignIn.Root path="/sign-in">
+          <Suspense fallback={<div />}>
+            <SignIn.Root path="/sign-in">
             <Clerk.GlobalError className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" />
             <SignIn.Step name="start" className="space-y-4">
               <Clerk.Field name="identifier" className="grid gap-2">
@@ -90,7 +92,8 @@ export default function SignInPage() {
                 </SignIn.Action>
               </SignIn.Strategy>
             </SignIn.Step>
-          </SignIn.Root>
+            </SignIn.Root>
+          </Suspense>
         </div>
       </div>
     </main>
