@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ClerkLoaded, ClerkLoading } from "@clerk/nextjs";
 
 import { ensureConsolePerson } from "./_server/people";
+
+export const dynamic = "force-dynamic";
 
 export default async function ConsoleLayout({
   children,
@@ -9,6 +12,10 @@ export default async function ConsoleLayout({
   children: React.ReactNode;
 }) {
   const person = await ensureConsolePerson();
+
+  if (!person) {
+    redirect("/sign-in/console");
+  }
 
   if (!person.isPlatformAdmin) {
     return (

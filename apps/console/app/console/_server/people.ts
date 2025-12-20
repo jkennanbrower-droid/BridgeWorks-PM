@@ -1,8 +1,7 @@
-"use server";
-
 import "server-only";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { getPrisma } from "db";
 
 function parseAllowlist(raw: string | undefined): Set<string> {
@@ -16,9 +15,10 @@ function parseAllowlist(raw: string | undefined): Set<string> {
 }
 
 export async function ensureConsolePerson() {
+  noStore();
   const { userId } = auth();
   if (!userId) {
-    throw new Error("Not authenticated.");
+    return null;
   }
 
   const user = await currentUser();
@@ -47,6 +47,9 @@ export async function ensureConsolePerson() {
 
 export async function requirePlatformAdmin() {
   const person = await ensureConsolePerson();
+  if (!person) {
+    throw new Error("Not authenticated.");
+  }
   if (!person.isPlatformAdmin) {
     throw new Error("Not authorized for console access.");
   }

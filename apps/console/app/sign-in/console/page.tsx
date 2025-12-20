@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useSignIn } from "@clerk/nextjs";
 
@@ -12,12 +12,6 @@ export default function ConsoleSignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.replace("/console");
-    }
-  }, [isLoaded, isSignedIn, router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,10 +32,18 @@ export default function ConsoleSignInPage() {
 
       setError("Additional verification required. Use the email code sign-in.");
     } catch (err) {
-      const message =
+      const details =
         err && typeof err === "object" && "errors" in err
-          ? (err as { errors?: { message?: string }[] }).errors?.[0]?.message
-          : null;
+          ? (err as { errors?: { code?: string; message?: string }[] }).errors?.[0]
+          : undefined;
+      const message = details?.message;
+      if (
+        details?.code === "session_exists" ||
+        message?.includes("Session already exists")
+      ) {
+        setError("Session exists in another tab. Refresh this page to continue.");
+        return;
+      }
       setError(message ?? "Unable to sign in. Check your credentials.");
     } finally {
       setIsSubmitting(false);
@@ -64,6 +66,19 @@ export default function ConsoleSignInPage() {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <form className="space-y-4" onSubmit={handleSubmit}>
+            {isLoaded && isSignedIn ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                You are already signed in.
+                <button
+                  type="button"
+                  onClick={() => router.replace("/console")}
+                  className="ml-2 font-semibold underline"
+                >
+                  Continue to console
+                </button>
+                .
+              </div>
+            ) : null}
             {error ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {error}
