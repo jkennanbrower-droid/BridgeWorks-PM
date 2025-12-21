@@ -1,14 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth, useClerk } from "@clerk/nextjs";
 
 import { layout } from "./ui/layoutTokens";
 
 export function NavBar() {
-  const { isLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
-
   return (
     <header className="border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-black/70">
       <div className={layout.container}>
@@ -21,22 +17,11 @@ export function NavBar() {
             BridgeWorks PM
           </Link>
 
-          {isLoaded && isSignedIn ? (
-            <button
-              type="button"
-              onClick={() => void signOut({ redirectUrl: "/" })}
-              className={`${layout.buttonBase} ${layout.buttonSecondary}`}
-            >
-              Sign Out
-            </button>
-          ) : (
-            <Link
-              href="/login"
-              className={`${layout.buttonBase} ${layout.buttonSecondary}`}
-            >
-              Login
-            </Link>
-          )}
+          <span
+            className={`${layout.buttonBase} ${layout.buttonSecondary} cursor-not-allowed opacity-70`}
+          >
+            Auth disabled
+          </span>
         </div>
       </div>
     </header>

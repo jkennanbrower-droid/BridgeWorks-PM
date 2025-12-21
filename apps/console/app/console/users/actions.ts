@@ -15,8 +15,11 @@ type ActionState = {
   personId?: string;
 };
 
-const PLATFORM_ROLE_SET = new Set<string>(PLATFORM_ROLES);
-const PERSON_STATUS_SET = new Set<string>(PERSON_STATUSES);
+type PlatformRoleValue = (typeof PLATFORM_ROLES)[number];
+type PersonStatusValue = (typeof PERSON_STATUSES)[number];
+
+const PLATFORM_ROLE_SET = new Set<PlatformRoleValue>(PLATFORM_ROLES);
+const PERSON_STATUS_SET = new Set<PersonStatusValue>(PERSON_STATUSES);
 
 function requireString(formData: FormData, field: string) {
   const value = formData.get(field);
@@ -40,18 +43,18 @@ function requireEmail(formData: FormData) {
 
 function requireRole(formData: FormData) {
   const role = requireString(formData, "platformRole");
-  if (!PLATFORM_ROLE_SET.has(role)) {
+  if (!PLATFORM_ROLE_SET.has(role as PlatformRoleValue)) {
     throw new Error("Select a valid platform role.");
   }
-  return role;
+  return role as PlatformRoleValue;
 }
 
 function requireStatus(formData: FormData) {
   const status = requireString(formData, "status");
-  if (!PERSON_STATUS_SET.has(status)) {
+  if (!PERSON_STATUS_SET.has(status as PersonStatusValue)) {
     throw new Error("Select a valid status.");
   }
-  return status;
+  return status as PersonStatusValue;
 }
 
 function readSkipInvite(formData: FormData) {

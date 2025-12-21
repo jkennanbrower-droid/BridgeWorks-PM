@@ -3,12 +3,19 @@ import { notFound } from "next/navigation";
 import { getPrisma } from "db";
 
 import { PageHeader } from "../../_components/PageHeader";
+import { UserActions } from "./UserActions";
 
 export default async function UserDetailPage({
   params,
 }: {
   params: { personId: string };
 }) {
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!isUuid.test(params.personId)) {
+    notFound();
+  }
+
   const prisma = getPrisma();
   const person = await prisma.person.findUnique({
     where: { id: params.personId },
@@ -24,14 +31,14 @@ export default async function UserDetailPage({
         title={person.name ?? person.email}
         subtitle={`User ID: ${person.id}`}
         actions={
-          <div className="flex items-center gap-3">
-            <button className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300">
-              Disable
-            </button>
-            <button className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300">
-              Edit roles
-            </button>
-          </div>
+          <UserActions
+            personId={person.id}
+            name={person.name}
+            email={person.email}
+            platformRole={person.platformRole}
+            status={person.status}
+            clerkUserId={person.clerkUserId}
+          />
         }
       />
 
@@ -49,6 +56,14 @@ export default async function UserDetailPage({
             Status
           </h2>
           <p className="mt-3 text-lg font-semibold text-slate-900">{person.status}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Clerk
+          </h2>
+          <p className="mt-3 text-sm font-semibold text-slate-900">
+            {person.clerkUserId ?? "No Clerk account linked"}
+          </p>
         </div>
       </div>
 

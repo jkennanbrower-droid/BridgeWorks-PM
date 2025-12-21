@@ -12,6 +12,9 @@ A modern project management platform built with Next.js, Express, and PostgreSQL
 
 ### Setup
 
+**Windows note:** For best results, clone/open this repo from a path **without spaces** (e.g. `C:\dev\BridgeWorksPM`).
+Some Next.js dev tooling (Turbopack source maps) can misbehave when the workspace path contains spaces.
+
 1. **Install dependencies**
    ```
 BridgeWorks-PM/

@@ -42,7 +42,14 @@ export default async function UsersPage() {
               people.map((person) => (
                 <tr key={person.id} className="border-t border-slate-100">
                   <td className="px-4 py-4 font-semibold text-slate-900">
-                    {person.name ?? "Unnamed"}
+                    <div className="flex flex-col gap-1">
+                      <span>{person.name ?? "Unnamed"}</span>
+                      {!person.clerkUserId ? (
+                        <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          No Clerk account
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-4 text-slate-600">{person.email}</td>
                   <td className="px-4 py-4 text-slate-600">

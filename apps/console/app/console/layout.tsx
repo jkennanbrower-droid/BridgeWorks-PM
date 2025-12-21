@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import { ClerkLoaded, ClerkLoading } from "@clerk/nextjs";
-
 import { ensureConsolePerson } from "./_server/people";
 import { logAudit } from "./_server/audit";
 import { hasPlatformAccess } from "./_server/rbac";
@@ -55,12 +53,7 @@ export default async function ConsoleLayout({
 
   return (
     <ConsoleShell person={person}>
-      <ClerkLoading>
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
-          Loading console...
-        </div>
-      </ClerkLoading>
-      <ClerkLoaded>{children}</ClerkLoaded>
+      {children}
     </ConsoleShell>
   );
 }

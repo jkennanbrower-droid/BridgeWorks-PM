@@ -50,6 +50,22 @@ export default async function OrgDetailPage({
             {org.createdAt.toLocaleString()}
           </p>
         </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Primary contact
+          </h2>
+          <p className="mt-3 text-lg font-semibold text-slate-900">
+            {org.primaryContactEmail ?? "Not set"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Health status
+          </h2>
+          <p className="mt-3 text-lg font-semibold text-slate-900">
+            {org.healthStatus ?? "Unknown"}
+          </p>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">

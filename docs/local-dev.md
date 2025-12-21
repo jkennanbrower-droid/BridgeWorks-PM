@@ -1,5 +1,15 @@
 # Local Dev (Ports + Proxy)
 
+## Windows note (path without spaces)
+
+If you're developing on Windows, keep the repo path **free of spaces** (for example `C:\dev\BridgeWorksPM`).
+
+When the workspace path contains spaces (like `C:\dev\BridgeWorks PM`), Next.js dev with Turbopack can emit `file://` source map URLs that some tools can't parse, causing errors like:
+
+- `Invalid source map. ... sourceMapURL could not be parsed`
+
+This is a dev-only tooling issue (not an application bug). The most reliable fix is to move/clone the repo to a no-space path, or open it via a no-space drive mapping/symlink.
+
 ## Ports
 
 - `apps/public`: `http://localhost:3100`

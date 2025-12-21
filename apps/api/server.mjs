@@ -7,7 +7,6 @@ import express from "express";
 import multer from "multer";
 import pg from "pg";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { createClerkClient, verifyToken } from "@clerk/backend";
 
 function loadDotEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -414,44 +413,8 @@ addAlias("/r2-upload", "/api/r2-upload", (req, res) => {
 addAlias("/auth/bootstrap", "/api/auth/bootstrap", async (req, res) => {
   noStore(res);
 
-  const token = getBearerToken(req);
-  if (!token) return res.status(401).json({ ok: false, error: "Unauthorized" });
-
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) return res.status(500).json({ ok: false, error: "CLERK_SECRET_KEY is not set" });
-
-  let sessionClaims;
-  try {
-    sessionClaims = await verifyToken(token, { secretKey });
-  } catch (e) {
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
-
-  const clerkUserId = sessionClaims?.sub;
-  if (!clerkUserId) return res.status(401).json({ ok: false, error: "Unauthorized" });
-
-  const clerkClient = createClerkClient({ secretKey });
-  let email =
-    sessionClaims?.email ??
-    sessionClaims?.email_address ??
-    sessionClaims?.primary_email_address ??
-    null;
-
-  if (!email) {
-    try {
-      const user = await clerkClient.users.getUser(clerkUserId);
-      const primaryEmail = user.emailAddresses.find(
-        (entry) => entry.id === user.primaryEmailAddressId
-      );
-      email = primaryEmail?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress ?? null;
-    } catch (e) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
-    }
-  }
-
-  if (!email) return res.status(400).json({ ok: false, error: "Missing email" });
-
-  const normalizedEmail = email.trim().toLowerCase();
+  const rawEmail = process.env.NO_AUTH_EMAIL ?? "no-auth@bridgeworks.local";
+  const normalizedEmail = rawEmail.trim().toLowerCase();
   const now = new Date();
 
   let userRow = null;
@@ -478,25 +441,16 @@ addAlias("/auth/bootstrap", "/api/auth/bootstrap", async (req, res) => {
 
     await pool.query(
       'INSERT INTO "AuthAccount" (provider, "providerAccountId", "userId", "lastUsedAt") VALUES ($1, $2, $3, $4) ON CONFLICT (provider, "providerAccountId") DO UPDATE SET "userId" = EXCLUDED."userId", "lastUsedAt" = EXCLUDED."lastUsedAt"',
-      ["CLERK", clerkUserId, userRow.id, now]
-    );
-
-    const staffCheck = await pool.query(
-      'SELECT EXISTS (SELECT 1 FROM "OrgMember" WHERE "userId" = $1) AS "isStaff"',
-      [userRow.id]
-    );
-    const tenantCheck = await pool.query(
-      'SELECT EXISTS (SELECT 1 FROM "Tenancy" WHERE "userId" = $1) AS "isTenant"',
-      [userRow.id]
+      ["NO_AUTH", normalizedEmail, userRow.id, now]
     );
 
     return res.json({
       ok: true,
-      clerkUserId,
+      authProvider: "NO_AUTH",
       user: { id: userRow.id, email: userRow.email },
       access: {
-        isStaff: Boolean(staffCheck.rows[0]?.isStaff),
-        isTenant: Boolean(tenantCheck.rows[0]?.isTenant),
+        isStaff: true,
+        isTenant: true,
       },
     });
   } catch (e) {

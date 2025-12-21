@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPrisma } from "db";
 
 import { PageHeader } from "../_components/PageHeader";
+import { CreateOrgDialog } from "./CreateOrgDialog";
 
 export default async function OrgsPage() {
   const prisma = getPrisma();
@@ -16,11 +17,7 @@ export default async function OrgsPage() {
       <PageHeader
         title="Organizations"
         subtitle="Manage org access, status, and health signals."
-        actions={
-          <button className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300">
-            Create org
-          </button>
-        }
+        actions={<CreateOrgDialog />}
       />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

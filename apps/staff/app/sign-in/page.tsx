@@ -1,128 +1,19 @@
-"use client";
+﻿import Link from "next/link";
 
-import * as Clerk from "@clerk/elements/common";
-import * as SignIn from "@clerk/elements/sign-in";
-import { useAuth, useClerk } from "@clerk/nextjs";
-import { Suspense } from "react";
-
-export default function SignInPage() {
-  const { isLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
-
-  if (!isLoaded) {
-    return (
-      <main className="min-h-screen bg-slate-50 text-slate-900">
-        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-            Loading...
-          </div>
-        </div>
-      </main>
-    );
-  }
-
+export default function Page() {
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
-        <div className="mb-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-            BridgeWorks
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold">
-            Sign in to Staff Portal
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">Staff access only.</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          {isLoaded && isSignedIn ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-              You are already signed in.
-              <button
-                type="button"
-                onClick={() => void signOut({ redirectUrl: "/sign-in" })}
-                className="ml-2 font-semibold underline"
-              >
-                Sign out
-              </button>
-              .
-            </div>
-          ) : (
-            <Suspense fallback={<div />}>
-              <SignIn.Root path="/sign-in">
-            <Clerk.GlobalError className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" />
-            <SignIn.Step name="start" className="space-y-4">
-              <Clerk.Field name="identifier" className="grid gap-2">
-                <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Email
-                </Clerk.Label>
-                <Clerk.Input className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20" />
-                <Clerk.FieldError className="text-xs text-rose-600" />
-              </Clerk.Field>
-              <Clerk.Field name="password" className="grid gap-2">
-                <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Password
-                </Clerk.Label>
-                <Clerk.Input
-                  type="password"
-                  className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                />
-                <Clerk.FieldError className="text-xs text-rose-600" />
-              </Clerk.Field>
-              <SignIn.Action
-                submit
-                className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-lg bg-teal-600 text-sm font-semibold text-white hover:bg-teal-500"
-              >
-                <Clerk.Loading>
-                  {(isLoading) => (isLoading ? "Signing in..." : "Sign in")}
-                </Clerk.Loading>
-              </SignIn.Action>
-            </SignIn.Step>
-            <SignIn.Step name="verifications" className="space-y-4">
-              <SignIn.Strategy name="email_code">
-                <p className="text-sm text-slate-600">
-                  Enter the code sent to <SignIn.SafeIdentifier />.
-                </p>
-                <Clerk.Field name="code" className="grid gap-2">
-                  <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Verification code
-                  </Clerk.Label>
-                  <Clerk.Input className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20" />
-                  <Clerk.FieldError className="text-xs text-rose-600" />
-                </Clerk.Field>
-                <SignIn.Action
-                  submit
-                  className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-teal-600 text-sm font-semibold text-white hover:bg-teal-500"
-                >
-                  <Clerk.Loading>
-                    {(isLoading) => (isLoading ? "Verifying..." : "Verify")}
-                  </Clerk.Loading>
-                </SignIn.Action>
-              </SignIn.Strategy>
-              <SignIn.Strategy name="password">
-                <Clerk.Field name="password" className="grid gap-2">
-                  <Clerk.Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Password
-                  </Clerk.Label>
-                  <Clerk.Input
-                    type="password"
-                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                  />
-                  <Clerk.FieldError className="text-xs text-rose-600" />
-                </Clerk.Field>
-                <SignIn.Action
-                  submit
-                  className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-teal-600 text-sm font-semibold text-white hover:bg-teal-500"
-                >
-                  <Clerk.Loading>
-                    {(isLoading) => (isLoading ? "Signing in..." : "Continue")}
-                  </Clerk.Loading>
-                </SignIn.Action>
-              </SignIn.Strategy>
-            </SignIn.Step>
-            </SignIn.Root>
-          </Suspense>
-          )}
-        </div>
+    <main className="grid min-h-screen place-items-center bg-white text-black dark:bg-black dark:text-white">
+      <div className="flex max-w-md flex-col items-center gap-3 text-center">
+        <h1 className="text-2xl font-semibold">Auth disabled</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Sign-in is currently turned off.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex h-11 items-center justify-center rounded-lg border border-black/10 bg-white px-5 text-sm font-semibold text-slate-900 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/15 dark:bg-slate-950 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-black"
+        >
+          Continue
+        </Link>
       </div>
     </main>
   );

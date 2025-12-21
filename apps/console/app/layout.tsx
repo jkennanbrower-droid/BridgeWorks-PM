@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import "../src/app/globals.css";
@@ -29,13 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${plexSans.variable} ${plexMono.variable} antialiased font-sans`}>
-        <ClerkProvider
-          signInUrl="/sign-in/console"
-          afterSignInUrl="/console"
-          afterSignUpUrl="/console"
-        >
-          {children}
-        </ClerkProvider>
+        {children}
       </body>
     </html>
   );

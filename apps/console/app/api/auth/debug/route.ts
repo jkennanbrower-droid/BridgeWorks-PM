@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
-import { auth } from "@clerk/nextjs/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +9,9 @@ export async function GET() {
   const cookieNames = cookieStore.getAll().map((c) => c.name);
   const cookieHeader = headerStore.get("cookie") ?? "";
 
-  const { userId, sessionId } = await auth();
-
   return NextResponse.json({
     ok: true,
-    auth: { userId, sessionId },
+    auth: { disabled: true },
     cookies: {
       count: cookieNames.length,
       names: cookieNames.slice(0, 50),
@@ -25,4 +22,3 @@ export async function GET() {
     },
   });
 }
-
