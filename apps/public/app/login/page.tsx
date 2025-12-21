@@ -36,10 +36,10 @@ function joinUrl(baseUrl: string | undefined, path: string) {
   return `${base}${normalizedPath}`;
 }
 
-const userUrl = joinUrl(portalBaseUrl, "/sign-in");
-const staffUrl = joinUrl(staffBaseUrl, "/sign-in");
-const ownerUrl = joinUrl(orgBaseUrl, "/sign-in");
-const consoleUrl = joinUrl(consoleBaseUrl, "/sign-in/console");
+const userUrl = joinUrl(portalBaseUrl, "/");
+const staffUrl = joinUrl(staffBaseUrl, "/");
+const ownerUrl = joinUrl(orgBaseUrl, "/");
+const consoleUrl = joinUrl(consoleBaseUrl, "/console");
 
 const portals: Portal[] = [
   {

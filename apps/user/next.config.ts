@@ -42,7 +42,7 @@ function normalizeBasePath(value: string | undefined): string | undefined {
 const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["shared"],
+  transpilePackages: ["shared", "ui"],
   ...(basePath ? { basePath } : {}),
 };
 

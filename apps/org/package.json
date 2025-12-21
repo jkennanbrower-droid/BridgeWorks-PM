@@ -14,7 +14,8 @@
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "shared": "file:../../packages/shared"
+    "shared": "file:../../packages/shared",
+    "ui": "file:../../packages/ui"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

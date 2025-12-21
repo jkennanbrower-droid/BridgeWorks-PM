@@ -17,11 +17,12 @@ export function NavBar() {
             BridgeWorks PM
           </Link>
 
-          <span
-            className={`${layout.buttonBase} ${layout.buttonSecondary} cursor-not-allowed opacity-70`}
+          <Link
+            href="/login"
+            className={`${layout.buttonBase} ${layout.buttonSecondary}`}
           >
-            Auth disabled
-          </span>
+            Log in
+          </Link>
         </div>
       </div>
     </header>
