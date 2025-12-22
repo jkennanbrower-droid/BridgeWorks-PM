@@ -603,22 +603,22 @@ async function probeServices(selfBase, timestampMs) {
     }),
   );
   services.push(
-    await safeCheck("Public", "/api/health", async () => await checkServiceReachable("Public", "INTERNAL_PUBLIC_BASE_URL")),
+    await safeCheck("Public", "/api/health", async () => await checkServiceReachable("Public", "PUBLIC_INTERNAL_URL")),
   );
   services.push(
-    await safeCheck("User", "/api/health", async () => await checkServiceReachable("User", "INTERNAL_USER_BASE_URL")),
+    await safeCheck("User", "/api/health", async () => await checkServiceReachable("User", "USER_INTERNAL_URL")),
   );
   services.push(
-    await safeCheck("Staff", "/api/health", async () => await checkServiceReachable("Staff", "INTERNAL_STAFF_BASE_URL")),
+    await safeCheck("Staff", "/api/health", async () => await checkServiceReachable("Staff", "STAFF_INTERNAL_URL")),
   );
   services.push(
-    await safeCheck("Org", "/api/health", async () => await checkServiceReachable("Org", "INTERNAL_ORG_BASE_URL")),
+    await safeCheck("Org", "/api/health", async () => await checkServiceReachable("Org", "ORG_INTERNAL_URL")),
   );
   services.push(
     await safeCheck(
       "Console",
       "/api/health",
-      async () => await checkServiceReachable("Console", "INTERNAL_CONSOLE_BASE_URL"),
+      async () => await checkServiceReachable("Console", "CONSOLE_INTERNAL_URL"),
     ),
   );
 
