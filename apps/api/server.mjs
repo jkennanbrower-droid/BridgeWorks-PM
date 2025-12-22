@@ -442,10 +442,6 @@ function errorCode(error) {
   return typeof causeCode === "string" && causeCode.length ? causeCode : null;
 }
 
-function resolveUrl(baseUrl, path) {
-  return new URL(String(path), String(baseUrl)).toString();
-}
-
 async function checkUrl(name, url, pathChecked, timeoutMs) {
   try {
     const { res, latencyMs } = await fetchWithTimeout(url, { timeoutMs });
@@ -534,7 +530,7 @@ async function checkServiceReachable(name, baseEnvKey) {
 
   let url = null;
   try {
-    url = resolveUrl(baseUrl, pathChecked);
+    url = new URL(pathChecked, String(baseUrl)).toString();
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
     logger.debug(
@@ -573,8 +569,15 @@ async function probeServices(selfBase, timestampMs) {
   const services = [];
   try {
     const apiBase = process.env.INTERNAL_API_BASE_URL ?? getLocalApiBaseUrl();
-    services.push(await checkUrl("API /health", resolveUrl(apiBase, "/health"), "/health", 5000));
-    services.push(await checkUrl("API /health/db", resolveUrl(apiBase, "/health/db"), "/health/db", 5000));
+    services.push(await checkUrl("API /health", new URL("/health", String(apiBase)).toString(), "/health", 5000));
+    services.push(
+      await checkUrl(
+        "API /health/db",
+        new URL("/health/db", String(apiBase)).toString(),
+        "/health/db",
+        5000,
+      ),
+    );
     services.push(await checkServiceReachable("Public", "INTERNAL_PUBLIC_BASE_URL"));
     services.push(await checkServiceReachable("User", "INTERNAL_USER_BASE_URL"));
     services.push(await checkServiceReachable("Staff", "INTERNAL_STAFF_BASE_URL"));
