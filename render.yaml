@@ -53,7 +53,10 @@ services:
     env: node
     buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/console run build
     startCommand: corepack pnpm -C apps/console run start
+    healthCheckPath: /api/ready
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
       - key: NEXT_PUBLIC_BASE_PATH

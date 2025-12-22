@@ -1,4 +1,4 @@
 FROM prom/prometheus:v2.55.1
 
-COPY prometheus.render.yml /etc/prometheus/prometheus.yml
+COPY infra/observability/prometheus.render.yml /etc/prometheus/prometheus.yml
 
