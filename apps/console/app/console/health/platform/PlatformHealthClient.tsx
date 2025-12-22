@@ -5,15 +5,26 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { format } from "date-fns";
 
 import { SERVICE_DEFINITIONS, type ServiceStatus } from "../_data/services";
-import type { OpsServiceCheck } from "../_data/opsTypes";
+import type {
+  OpsDependenciesSnapshot,
+  OpsServiceCheck,
+  OpsStressStatusResponse,
+} from "../_data/opsTypes";
+import {
+  fetchOpsStressStatus,
+  runOpsStress,
+  runOpsTest,
+} from "../_data/opsClient";
 import type { ServiceSnapshot } from "../_data/healthModels";
 import { usePlatformStatus } from "../_hooks/usePlatformStatus";
 import { useServiceMetrics } from "../_hooks/useServiceMetrics";
+import { useDependenciesStatus } from "../_hooks/useDependenciesStatus";
 import { OverallHealthHeader } from "../components/OverallHealthHeader";
 import { ServiceHealthCard } from "../components/ServiceHealthCard";
 import { ServiceHealthDrawer } from "../components/ServiceHealthDrawer";
 import { TelemetryBanner } from "../components/TelemetryBanner";
 import { HealthSkeleton } from "../components/HealthSkeleton";
+import { StressTestDialog, type StressConfig } from "../components/StressTestDialog";
 
 const LATENCY_DEGRADED_THRESHOLD_MS = 1500;
 
@@ -74,13 +85,38 @@ export function PlatformHealthClient() {
     "latency",
   );
   const [incidentNotice, setIncidentNotice] = useState<string | null>(null);
+  const [manualServices, setManualServices] = useState<OpsServiceCheck[] | null>(
+    null,
+  );
+  const [manualDependencies, setManualDependencies] =
+    useState<OpsDependenciesSnapshot | null>(null);
+  const [manualUpdatedAt, setManualUpdatedAt] = useState<string | null>(null);
+  const [isTestRunning, setIsTestRunning] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [stressDialogOpen, setStressDialogOpen] = useState(false);
+  const [stressConfig, setStressConfig] = useState<StressConfig>({
+    durationSec: 30,
+    rps: 30,
+    concurrency: 12,
+    bytes: 256,
+    ms: 0,
+    targets: ["api", "public", "user", "staff", "org", "console"],
+  });
+  const [stressRunId, setStressRunId] = useState<string | null>(null);
+  const [stressStatus, setStressStatus] = useState<OpsStressStatusResponse | null>(
+    null,
+  );
+  const [stressError, setStressError] = useState<string | null>(null);
+  const [isStressRunning, setIsStressRunning] = useState(false);
 
   const status = usePlatformStatus(range, refreshMs);
   const platformMetrics = useServiceMetrics("platform", range, refreshMs);
+  const dependenciesStatus = useDependenciesStatus(refreshMs);
 
   const serviceSnapshots = useMemo(() => {
+    const checks = manualServices ?? status.data?.services;
     return SERVICE_DEFINITIONS.map((definition) => {
-      const check = getCheckForService(status.data?.services, definition.opsNames);
+      const check = getCheckForService(checks, definition.opsNames);
       const serviceStatus = getStatusFromCheck(check);
       const statusReason = buildStatusReason(check, serviceStatus);
       return {
@@ -98,7 +134,7 @@ export function PlatformHealthClient() {
         check,
       } satisfies ServiceSnapshot;
     });
-  }, [status.data]);
+  }, [manualServices, status.data]);
 
   const counts = useMemo(() => {
     const degraded = serviceSnapshots.filter((s) => s.status === "degraded").length;
@@ -107,11 +143,26 @@ export function PlatformHealthClient() {
     return { degraded, outage, unknown, total: serviceSnapshots.length };
   }, [serviceSnapshots]);
 
+  const dbOk =
+    dependencies?.db?.state === "healthy"
+      ? true
+      : dependencies?.db?.state === "unhealthy"
+        ? false
+        : status.data?.db.ok ?? null;
+  const dbStatusLabel =
+    dependencies?.db?.state === "healthy"
+      ? "OK"
+      : dependencies?.db?.state === "unhealthy"
+        ? "Down"
+        : dependencies?.db?.state === "disabled"
+          ? "Disabled"
+          : null;
+
   const overallStatus = useMemo(() => {
     if (!status.data) {
       return { label: "Telemetry unavailable", tone: "unknown" as const };
     }
-    if (status.data.db.ok === false) {
+    if (dbOk === false) {
       return { label: "Major Outage", tone: "down" as const };
     }
     if (counts.outage > 0) {
@@ -121,13 +172,13 @@ export function PlatformHealthClient() {
       return { label: "Degraded", tone: "warn" as const };
     }
     return { label: "Operational", tone: "ok" as const };
-  }, [counts, status.data]);
+  }, [counts, dbOk, status.data]);
 
   const healthScore = computeHealthScore(
     counts.degraded,
     counts.outage,
     counts.unknown,
-    status.data?.db.ok ?? null,
+    dbOk,
   );
 
   useEffect(() => {
@@ -139,6 +190,34 @@ export function PlatformHealthClient() {
       setActiveService(updated);
     }
   }, [activeService, serviceSnapshots]);
+
+  useEffect(() => {
+    if (!stressRunId || !isStressRunning) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const next = await fetchOpsStressStatus(stressRunId);
+        if (cancelled) return;
+        setStressStatus(next);
+        if (next.status !== "running") {
+          setIsStressRunning(false);
+          platformMetrics.refresh();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error instanceof Error ? error.message : "Stress status failed.";
+        setStressError(message);
+        setIsStressRunning(false);
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [stressRunId, isStressRunning, platformMetrics]);
 
   const avgLatency = useMemo(() => {
     const values = serviceSnapshots
@@ -191,10 +270,24 @@ export function PlatformHealthClient() {
     };
   }, [platformMetrics.data]);
 
-  const lastUpdated = status.data?.api.timestamp
-    ? new Date(status.data.api.timestamp)
-    : null;
-  const dependencies = status.data?.dependencies;
+  const dependenciesSnapshot =
+    manualDependencies ??
+    (dependenciesStatus.data
+      ? {
+          db: dependenciesStatus.data.db,
+          auth: dependenciesStatus.data.auth,
+          storage: dependenciesStatus.data.storage,
+        }
+      : null) ??
+    status.data?.dependencies ??
+    null;
+
+  const lastUpdated = manualUpdatedAt
+    ? new Date(manualUpdatedAt)
+    : status.data?.api.timestamp
+      ? new Date(status.data.api.timestamp)
+      : null;
+  const dependencies = dependenciesSnapshot;
   const dataAgeMs = lastUpdated ? Date.now() - lastUpdated.getTime() : null;
   const staleThresholdMs = refreshMs > 0 ? refreshMs * 2 : 300_000;
   const isStale =
@@ -204,20 +297,50 @@ export function PlatformHealthClient() {
   const copyLabel = useMemo(() => {
     const lines = [
       `Platform Health - ${overallStatus.label}`,
-      `Updated: ${status.data?.api.timestamp ?? "unknown"}`,
-      `DB: ${status.data?.db.ok ? "OK" : "Down"}`,
+      `Updated: ${manualUpdatedAt ?? status.data?.api.timestamp ?? "unknown"}`,
+      `DB: ${dbStatusLabel ?? (dbOk === null ? "Unknown" : dbOk ? "OK" : "Down")}`,
       ...serviceSnapshots.map(
         (service) => `${service.label}: ${service.status}`,
       ),
     ];
     return lines.join("\n");
-  }, [overallStatus.label, serviceSnapshots, status.data]);
+  }, [
+    overallStatus.label,
+    manualUpdatedAt,
+    dbStatusLabel,
+    dbOk,
+    serviceSnapshots,
+    status.data,
+  ]);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(copyLabel);
     } catch {
       // ignore clipboard errors
+    }
+  };
+
+  const handleRunStress = async () => {
+    if (!stressConfig.targets.length) {
+      setStressError("Select at least one target.");
+      return;
+    }
+    setStressError(null);
+    setStressStatus(null);
+    setIsStressRunning(true);
+    try {
+      const run = await runOpsStress(stressConfig);
+      setStressRunId(run.id);
+      setStressStatus(run);
+      if (run.status !== "running") {
+        setIsStressRunning(false);
+        platformMetrics.refresh();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Stress test failed.";
+      setStressError(message);
+      setIsStressRunning(false);
     }
   };
 
@@ -251,8 +374,10 @@ export function PlatformHealthClient() {
             availability: avgAvailability,
             errorRate: avgErrorRate !== null ? avgErrorRate * 100 : null,
             p95Latency: avgP95Latency !== null ? Math.round(avgP95Latency) : null,
-            dbLatency: status.data?.db.latencyMs ?? null,
-            dbOk: status.data?.db.ok ?? null,
+            dbLatency:
+              dependencies?.db?.latencyMs ?? status.data?.db.latencyMs ?? null,
+            dbOk,
+            dbStatusLabel,
           }}
           trend={trend}
           activeTrend={activeTrend}
@@ -269,10 +394,37 @@ export function PlatformHealthClient() {
             setTimeout(() => setIncidentNotice(null), 2500);
           }}
           onRefreshNow={status.refresh}
+          onTestHealth={async () => {
+            setIsTestRunning(true);
+            setTestError(null);
+            try {
+              const result = await runOpsTest();
+              setManualServices(result.services);
+              setManualDependencies(result.dependencies);
+              setManualUpdatedAt(result.finishedAt);
+              status.refresh();
+              dependenciesStatus.refresh();
+              platformMetrics.refresh();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Test failed.";
+              setTestError(message);
+            } finally {
+              setIsTestRunning(false);
+            }
+          }}
+          onStressTest={() => setStressDialogOpen(true)}
+          isTestRunning={isTestRunning}
+          isStressRunning={isStressRunning}
         />
 
         {incidentNotice ? (
           <p className="text-xs text-slate-500">{incidentNotice}</p>
+        ) : null}
+
+        {testError ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            Test Health failed. {testError}
+          </div>
         ) : null}
 
         {isStale ? (
@@ -322,42 +474,21 @@ export function PlatformHealthClient() {
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <DependencyTile
                 label="Database"
-                status={status.data?.db.ok ? "Healthy" : "Down"}
-                metric={
-                  status.data?.db.latencyMs
-                    ? `${status.data.db.latencyMs} ms`
-                    : "--"
-                }
+                status={dependencies?.db ?? null}
+                onRetry={() => {
+                  status.refresh();
+                  dependenciesStatus.refresh();
+                }}
               />
               <DependencyTile
                 label="Auth (Clerk)"
-                status={
-                  dependencies?.auth.ok === null || dependencies?.auth.ok === undefined
-                    ? "Unknown"
-                    : dependencies.auth.ok
-                      ? "Healthy"
-                      : "Down"
-                }
-                metric={
-                  dependencies?.auth.latencyMs
-                    ? `${dependencies.auth.latencyMs} ms`
-                    : "Telemetry pending"
-                }
+                status={dependencies?.auth ?? null}
+                onRetry={() => dependenciesStatus.refresh()}
               />
               <DependencyTile
                 label="Storage (R2)"
-                status={
-                  dependencies?.storage.ok === null || dependencies?.storage.ok === undefined
-                    ? "Unknown"
-                    : dependencies.storage.ok
-                      ? "Healthy"
-                      : "Down"
-                }
-                metric={
-                  dependencies?.storage.latencyMs
-                    ? `${dependencies.storage.latencyMs} ms`
-                    : "Telemetry pending"
-                }
+                status={dependencies?.storage ?? null}
+                onRetry={() => dependenciesStatus.refresh()}
               />
             </div>
           </div>
@@ -368,8 +499,19 @@ export function PlatformHealthClient() {
           snapshot={activeService}
           range={range}
           refreshMs={refreshMs}
-          dependencies={status.data?.dependencies ?? null}
+          dependencies={dependencies ?? null}
           onClose={() => setActiveService(null)}
+        />
+
+        <StressTestDialog
+          open={stressDialogOpen}
+          onOpenChange={setStressDialogOpen}
+          config={stressConfig}
+          onConfigChange={setStressConfig}
+          onRun={handleRunStress}
+          status={stressStatus}
+          isRunning={isStressRunning}
+          error={stressError}
         />
       </div>
     </Tooltip.Provider>
@@ -378,18 +520,57 @@ export function PlatformHealthClient() {
 
 type DependencyTileProps = {
   label: string;
-  status: string;
-  metric: string;
+  status: OpsDependenciesSnapshot["db"] | null;
+  onRetry?: () => void;
 };
 
-function DependencyTile({ label, status, metric }: DependencyTileProps) {
+function DependencyTile({ label, status, onRetry }: DependencyTileProps) {
+  const state = status?.state ?? "unknown";
+  const tone =
+    state === "healthy"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : state === "unhealthy"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : state === "disabled"
+          ? "border-slate-200 bg-slate-100 text-slate-600"
+          : "border-slate-200 bg-slate-100 text-slate-600";
+  const title =
+    state === "healthy"
+      ? "Healthy"
+      : state === "unhealthy"
+        ? "Unhealthy"
+        : state === "disabled"
+          ? "Disabled"
+          : "Unknown";
+  const detail =
+    state === "healthy"
+      ? status?.latencyMs !== null && status?.latencyMs !== undefined
+        ? `${Math.round(status.latencyMs)} ms`
+        : "--"
+      : state === "disabled"
+        ? status?.message ?? "Not configured"
+        : state === "unhealthy"
+          ? status?.message ?? "Probe failed"
+          : "Telemetry pending";
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+    <div className={`rounded-xl border px-3 py-3 text-sm ${tone}`}>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{status}</p>
-      <p className="mt-1 text-xs text-slate-500">{metric}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-900">{title}</p>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">{detail}</p>
+        {state === "unhealthy" && onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+          >
+            Retry
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

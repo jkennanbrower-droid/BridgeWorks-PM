@@ -16,7 +16,7 @@ import { useServiceMetrics } from "../_hooks/useServiceMetrics";
 import { useServiceErrors } from "../_hooks/useServiceErrors";
 import { useServiceTraces } from "../_hooks/useServiceTraces";
 import { useServiceLogs } from "../_hooks/useServiceLogs";
-import type { OpsStatusResponse } from "../_data/opsTypes";
+import type { OpsDependenciesSnapshot, OpsDependencyStatus } from "../_data/opsTypes";
 import type { ServiceSnapshot } from "../_data/healthModels";
 
 type ServiceHealthDrawerProps = {
@@ -24,7 +24,7 @@ type ServiceHealthDrawerProps = {
   snapshot: ServiceSnapshot | null;
   range: string;
   refreshMs: number;
-  dependencies?: OpsStatusResponse["dependencies"] | null;
+  dependencies?: OpsDependenciesSnapshot | null;
   onClose: () => void;
 };
 
@@ -177,15 +177,15 @@ export function ServiceHealthDrawer({
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                           <DependencyBadge
                             label="DB"
-                            ok={dependencies?.db.ok ?? null}
+                            status={dependencies?.db ?? null}
                           />
                           <DependencyBadge
                             label="Auth"
-                            ok={dependencies?.auth.ok ?? null}
+                            status={dependencies?.auth ?? null}
                           />
                           <DependencyBadge
                             label="Storage"
-                            ok={dependencies?.storage.ok ?? null}
+                            status={dependencies?.storage ?? null}
                           />
                         </div>
                       </div>
@@ -276,19 +276,30 @@ export function ServiceHealthDrawer({
 
 type DependencyBadgeProps = {
   label: string;
-  ok: boolean | null;
+  status: OpsDependencyStatus | null;
 };
 
-function DependencyBadge({ label, ok }: DependencyBadgeProps) {
+function DependencyBadge({ label, status }: DependencyBadgeProps) {
+  const state = status?.state ?? "unknown";
   const tone =
-    ok === null
-      ? "border-slate-200 bg-slate-50 text-slate-600"
-      : ok
-        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-        : "border-rose-200 bg-rose-50 text-rose-700";
+    state === "healthy"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : state === "unhealthy"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : state === "disabled"
+          ? "border-slate-200 bg-slate-100 text-slate-600"
+          : "border-slate-200 bg-slate-50 text-slate-600";
+  const labelText =
+    state === "healthy"
+      ? "Healthy"
+      : state === "unhealthy"
+        ? "Unhealthy"
+        : state === "disabled"
+          ? "Disabled"
+          : "Pending";
   return (
     <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${tone}`}>
-      {label} {ok === null ? "Pending" : ok ? "OK" : "Down"}
+      {label} {labelText}
     </span>
   );
 }

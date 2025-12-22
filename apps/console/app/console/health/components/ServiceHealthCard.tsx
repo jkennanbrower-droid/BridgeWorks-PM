@@ -62,6 +62,8 @@ export function ServiceHealthCard({
     lastIndex !== null ? metrics?.latencyP95[lastIndex] ?? null : null;
   const lastErrorRate =
     lastIndex !== null ? metrics?.errorRate[lastIndex] ?? null : null;
+  const lastRequests =
+    lastIndex !== null ? metrics?.requestsPerMin[lastIndex] ?? null : null;
 
   const errorRatePct = lastErrorRate !== null ? lastErrorRate * 100 : null;
   const availability =
@@ -126,9 +128,10 @@ export function ServiceHealthCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-xs font-semibold text-slate-600">
+      <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-600 md:grid-cols-4">
         <MetricChip label="Availability" value={availability} suffix="%" decimals={2} />
         <MetricChip label="Error rate" value={errorRatePct} suffix="%" decimals={2} />
+        <MetricChip label="Requests/min" value={lastRequests} decimals={1} />
         <MetricChip label="P95 latency" value={p95Latency} suffix="ms" decimals={0} />
       </div>
 

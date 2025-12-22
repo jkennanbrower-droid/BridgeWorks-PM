@@ -8,8 +8,10 @@ import {
   Activity,
   Database,
   Gauge,
+  FlaskConical,
   Percent,
   TriangleAlert,
+  Zap,
 } from "lucide-react";
 
 import { LineChartPanel } from "./charts/LineChartPanel";
@@ -32,6 +34,7 @@ type OverallHealthHeaderProps = {
     p95Latency: number | null;
     dbLatency: number | null;
     dbOk: boolean | null;
+    dbStatusLabel?: string | null;
   };
   trend: {
     latency: ChartPoint[];
@@ -49,6 +52,10 @@ type OverallHealthHeaderProps = {
   onCopySummary: () => void;
   onCreateIncident: () => void;
   onRefreshNow: () => void;
+  onTestHealth: () => void;
+  onStressTest: () => void;
+  isTestRunning: boolean;
+  isStressRunning: boolean;
 };
 
 const STATUS_TONES: Record<OverallHealthHeaderProps["statusTone"], string> = {
@@ -96,7 +103,15 @@ export function OverallHealthHeader({
   onCopySummary,
   onCreateIncident,
   onRefreshNow,
+  onTestHealth,
+  onStressTest,
+  isTestRunning,
+  isStressRunning,
 }: OverallHealthHeaderProps) {
+  const dbSubtitle =
+    kpis.dbStatusLabel ??
+    (kpis.dbOk === null ? "Unknown" : kpis.dbOk ? "OK" : "Down");
+
   return (
     <div className="-mx-6 border-b border-slate-200 bg-slate-50/95 px-6 pb-6 pt-4 backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -158,6 +173,24 @@ export function OverallHealthHeader({
             </span>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onTestHealth}
+              disabled={isTestRunning}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <FlaskConical className="h-4 w-4" />
+              {isTestRunning ? "Testing health" : "Test Health"}
+            </button>
+            <button
+              type="button"
+              onClick={onStressTest}
+              disabled={isStressRunning}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Zap className="h-4 w-4" />
+              {isStressRunning ? "Stress running" : "Stress Test"}
+            </button>
             <button
               type="button"
               onClick={onCopySummary}
@@ -233,7 +266,7 @@ export function OverallHealthHeader({
               label="DB Health"
               value={kpis.dbLatency}
               suffix="ms"
-              subtitle={kpis.dbOk === null ? "Unknown" : kpis.dbOk ? "OK" : "Down"}
+              subtitle={dbSubtitle}
               threshold={{ warn: 400, danger: 800 }}
               precision={0}
             />

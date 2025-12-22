@@ -40,6 +40,7 @@ function normalizeBasePath(value: string | undefined): string | undefined {
 }
 
 const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   transpilePackages: ["shared", "db"],
@@ -47,6 +48,19 @@ const nextConfig: NextConfig = {
   experimental: {
     serverSourceMaps: false,
     turbopackSourceMaps: false,
+  },
+  async rewrites() {
+    if (!apiBaseUrl) {
+      return [];
+    }
+    return {
+      afterFiles: [
+        {
+          source: "/api/ops/:path*",
+          destination: `${apiBaseUrl}/ops/:path*`,
+        },
+      ],
+    };
   },
 };
 
