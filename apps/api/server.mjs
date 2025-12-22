@@ -276,11 +276,7 @@ const logger = pino(
 app.use(
   pinoHttp({
     logger,
-    customLogLevel: (res, err) => {
-      if (err || res.statusCode >= 500) return "error";
-      if (res.statusCode >= 400) return "warn";
-      return "info";
-    },
+    autoLogging: false,
   }),
 );
 
@@ -299,6 +295,19 @@ app.use((req, res, next) => {
       latencyMs: duration,
       timestampMs: Date.now(),
     });
+    const level = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+    logger[level](
+      {
+        req: {
+          id: req.id ?? crypto.randomUUID(),
+          method: req.method,
+          url: req.originalUrl ?? req.url,
+        },
+        res: { statusCode: res.statusCode },
+        responseTime: Math.round(duration),
+      },
+      "request completed",
+    );
   });
   next();
 });
