@@ -567,31 +567,60 @@ function getLocalApiBaseUrl() {
 
 async function probeServices(selfBase, timestampMs) {
   const services = [];
-  try {
-    const apiBase = process.env.INTERNAL_API_BASE_URL ?? getLocalApiBaseUrl();
-    services.push(await checkUrl("API /health", new URL("/health", String(apiBase)).toString(), "/health", 5000));
-    services.push(
-      await checkUrl(
-        "API /health/db",
-        new URL("/health/db", String(apiBase)).toString(),
-        "/health/db",
-        5000,
-      ),
-    );
-    services.push(await checkServiceReachable("Public", "INTERNAL_PUBLIC_BASE_URL"));
-    services.push(await checkServiceReachable("User", "INTERNAL_USER_BASE_URL"));
-    services.push(await checkServiceReachable("Staff", "INTERNAL_STAFF_BASE_URL"));
-    services.push(await checkServiceReachable("Org", "INTERNAL_ORG_BASE_URL"));
-    services.push(await checkServiceReachable("Console", "INTERNAL_CONSOLE_BASE_URL"));
-  } catch (e) {
-    services.push({
-      name: "ops/status",
-      pathChecked: "/ops/status",
-      ok: false,
-      status: 0,
-      latencyMs: null,
-    });
-  }
+
+  const fail = (name, pathChecked) => ({
+    name,
+    pathChecked,
+    ok: false,
+    status: 0,
+    latencyMs: null,
+  });
+
+  const safeCheck = async (name, pathChecked, fn, resolvedUrl = null) => {
+    try {
+      return await fn();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.debug(
+        { check: { name, url: resolvedUrl, pathChecked, status: 0, errorMessage: message } },
+        "ops/status check threw",
+      );
+      return fail(name, pathChecked);
+    }
+  };
+
+  const apiBase = process.env.INTERNAL_API_BASE_URL ?? getLocalApiBaseUrl();
+  services.push(
+    await safeCheck("API /health", "/health", async () => {
+      const url = new URL("/health", String(apiBase)).toString();
+      return await checkUrl("API /health", url, "/health", 5000);
+    }),
+  );
+  services.push(
+    await safeCheck("API /health/db", "/health/db", async () => {
+      const url = new URL("/health/db", String(apiBase)).toString();
+      return await checkUrl("API /health/db", url, "/health/db", 5000);
+    }),
+  );
+  services.push(
+    await safeCheck("Public", "/api/health", async () => await checkServiceReachable("Public", "INTERNAL_PUBLIC_BASE_URL")),
+  );
+  services.push(
+    await safeCheck("User", "/api/health", async () => await checkServiceReachable("User", "INTERNAL_USER_BASE_URL")),
+  );
+  services.push(
+    await safeCheck("Staff", "/api/health", async () => await checkServiceReachable("Staff", "INTERNAL_STAFF_BASE_URL")),
+  );
+  services.push(
+    await safeCheck("Org", "/api/health", async () => await checkServiceReachable("Org", "INTERNAL_ORG_BASE_URL")),
+  );
+  services.push(
+    await safeCheck(
+      "Console",
+      "/api/health",
+      async () => await checkServiceReachable("Console", "INTERNAL_CONSOLE_BASE_URL"),
+    ),
+  );
 
   const seenMetrics = new Set();
   for (const service of services) {
