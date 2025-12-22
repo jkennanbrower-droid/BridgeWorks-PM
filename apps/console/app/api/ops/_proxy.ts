@@ -18,7 +18,25 @@ export async function proxyOps(request: Request, path: string) {
   });
 
   try {
-    const res = await fetch(target.toString(), { cache: "no-store" });
+    const method = request.method.toUpperCase();
+    const headers = new Headers();
+    const contentType = request.headers.get("content-type");
+    if (contentType) headers.set("content-type", contentType);
+    const opsKey = process.env.OPS_KEY;
+    const requestOpsKey = request.headers.get("x-ops-key");
+    if (opsKey) {
+      headers.set("x-ops-key", opsKey);
+    } else if (requestOpsKey) {
+      headers.set("x-ops-key", requestOpsKey);
+    }
+    const body =
+      method !== "GET" && method !== "HEAD" ? await request.text() : undefined;
+    const res = await fetch(target.toString(), {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+    });
     if (!res.ok) {
       return NextResponse.json(
         { ok: false, error: `Upstream ops/${path} ${res.status}` },
