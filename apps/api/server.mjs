@@ -436,7 +436,6 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
   try {
     const { res, latencyMs } = await fetchWithTimeout(url, { timeoutMs });
     const ok = res.ok;
-    let json = null;
     const contentType = res.headers.get("content-type") || "";
     let preview = null;
     if (!ok) {
@@ -465,17 +464,12 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
         "ops/status check failed",
       );
     }
-    if (contentType.includes("application/json")) {
-      json = await res.json().catch(() => null);
-    }
     return {
       name,
-      url,
       pathChecked,
       ok,
       status: res.status,
       latencyMs: Math.round(latencyMs),
-      json,
     };
   } catch (e) {
     logger.warn(
@@ -492,12 +486,10 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
     );
     return {
       name,
-      url,
       pathChecked,
       ok: false,
       status: 0,
       latencyMs: null,
-      error: e instanceof Error ? e.message : String(e),
     };
   }
 }
@@ -507,55 +499,77 @@ async function checkServiceReachable(name, baseUrl) {
   return await checkUrl(name, `${base}/api/health`, "/api/health", 5000);
 }
 
-function optionalBaseUrl(envKey, fallback) {
+function envUrl(envKey) {
   const value = process.env[envKey];
-  return value && value.length > 0 ? value : fallback;
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function pickServiceBaseUrl(internalEnvKey, publicEnvKey, fallbackPublicUrl) {
+  return envUrl(internalEnvKey) ?? envUrl(publicEnvKey) ?? fallbackPublicUrl;
+}
+
+function getLocalApiBaseUrl() {
+  const port = envUrl("PORT") ?? "3000";
+  return `http://127.0.0.1:${port}`;
 }
 
 async function probeServices(selfBase, timestampMs) {
   const services = [];
   try {
-    services.push(await checkUrl("API /health", `${selfBase}/health`, "/health", 5000));
-    services.push(await checkUrl("API /health/db", `${selfBase}/health/db`, "/health/db", 5000));
+    const apiBase = getLocalApiBaseUrl();
+    services.push(await checkUrl("API /health", `${apiBase}/health`, "/health", 5000));
+    services.push(await checkUrl("API /health/db", `${apiBase}/health/db`, "/health/db", 5000));
     services.push(
       await checkServiceReachable(
         "Public",
-        optionalBaseUrl("NEXT_PUBLIC_PUBLIC_APP_URL", "https://www.bridgeworkspm.com"),
+        pickServiceBaseUrl(
+          "PUBLIC_INTERNAL_URL",
+          "NEXT_PUBLIC_PUBLIC_APP_URL",
+          "https://www.bridgeworkspm.com",
+        ),
       ),
     );
     services.push(
       await checkServiceReachable(
         "User",
-        optionalBaseUrl("NEXT_PUBLIC_USER_APP_URL", "https://user.bridgeworkspm.com"),
+        pickServiceBaseUrl("USER_INTERNAL_URL", "NEXT_PUBLIC_USER_APP_URL", "https://user.bridgeworkspm.com"),
       ),
     );
     services.push(
       await checkServiceReachable(
         "Staff",
-        optionalBaseUrl("NEXT_PUBLIC_STAFF_APP_URL", "https://staff.bridgeworkspm.com"),
+        pickServiceBaseUrl(
+          "STAFF_INTERNAL_URL",
+          "NEXT_PUBLIC_STAFF_APP_URL",
+          "https://staff.bridgeworkspm.com",
+        ),
       ),
     );
     services.push(
       await checkServiceReachable(
         "Org",
-        optionalBaseUrl("NEXT_PUBLIC_ORG_APP_URL", "https://org.bridgeworkspm.com"),
+        pickServiceBaseUrl("ORG_INTERNAL_URL", "NEXT_PUBLIC_ORG_APP_URL", "https://org.bridgeworkspm.com"),
       ),
     );
     services.push(
       await checkServiceReachable(
         "Console",
-        optionalBaseUrl("NEXT_PUBLIC_CONSOLE_APP_URL", "https://console.bridgeworkspm.com"),
+        pickServiceBaseUrl(
+          "CONSOLE_INTERNAL_URL",
+          "NEXT_PUBLIC_CONSOLE_APP_URL",
+          "https://console.bridgeworkspm.com",
+        ),
       ),
     );
   } catch (e) {
     services.push({
       name: "ops/status",
-      url: selfBase,
       pathChecked: "/ops/status",
       ok: false,
       status: 0,
       latencyMs: null,
-      error: e instanceof Error ? e.message : String(e),
     });
   }
 

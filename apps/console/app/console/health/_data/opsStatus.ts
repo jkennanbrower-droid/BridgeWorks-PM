@@ -1,12 +1,9 @@
 export type OpsServiceCheck = {
   name: string;
-  url: string;
   pathChecked: string;
   ok: boolean;
   status: number;
   latencyMs: number | null;
-  json?: unknown;
-  error?: string;
 };
 
 export type OpsStatusResponse = {
