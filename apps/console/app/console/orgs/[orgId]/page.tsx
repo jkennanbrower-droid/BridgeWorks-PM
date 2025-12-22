@@ -9,6 +9,17 @@ export default async function OrgDetailPage({
 }: {
   params: { orgId: string };
 }) {
+  if (!isUuid(params.orgId)) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title="Organization not found" />
+        <p className="text-sm text-slate-600">
+          The requested organization ID is invalid.
+        </p>
+      </div>
+    );
+  }
+
   const prisma = getPrisma();
   const org = await prisma.organization.findUnique({
     where: { id: params.orgId },
@@ -72,5 +83,11 @@ export default async function OrgDetailPage({
         Additional org tabs (Health, Users, Data, Migrations, Flags) will live here.
       </div>
     </div>
+  );
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
   );
 }

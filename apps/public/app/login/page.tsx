@@ -17,10 +17,10 @@ type Portal = {
 };
 
 const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
-const portalBaseUrl = process.env.PB_PORTAL_BASE_URL;
+const userBaseUrl = process.env.PB_USER_BASE_URL;
 const orgBaseUrl = process.env.NEXT_PUBLIC_ORG_APP_URL;
 const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
-const isMissingBaseUrl = !staffBaseUrl || !portalBaseUrl;
+const isMissingBaseUrl = !staffBaseUrl || !userBaseUrl;
 const showMissingWarning = isMissingBaseUrl;
 
 if (showMissingWarning) {
@@ -36,7 +36,7 @@ function joinUrl(baseUrl: string | undefined, path: string) {
   return `${base}${normalizedPath}`;
 }
 
-const userUrl = joinUrl(portalBaseUrl, "/");
+const userUrl = joinUrl(userBaseUrl, "/");
 const staffUrl = joinUrl(staffBaseUrl, "/");
 const ownerUrl = joinUrl(orgBaseUrl, "/");
 const consoleUrl = joinUrl(consoleBaseUrl, "/console");

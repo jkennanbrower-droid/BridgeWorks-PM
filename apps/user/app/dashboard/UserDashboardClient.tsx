@@ -20,13 +20,28 @@ const modules: ModuleDef[] = [
 const overviewLayout: ModuleLayout = {
   widgets: [
     {
+      id: "urgent-attention",
+      type: "urgent_attention",
+      sizePreset: "tall",
+    },
+    {
       id: "kpi-tiles",
       type: "kpi_tiles",
       sizePreset: "md",
     },
     {
+      id: "rent-collections",
+      type: "rent_collections",
+      sizePreset: "md",
+    },
+    {
       id: "maintenance-health",
       type: "maintenance_health",
+      sizePreset: "md",
+    },
+    {
+      id: "leasing-pipeline",
+      type: "leasing_pipeline",
       sizePreset: "md",
     },
   ],

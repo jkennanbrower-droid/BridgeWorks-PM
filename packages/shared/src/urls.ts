@@ -6,20 +6,20 @@ function stripTrailingSlash(url: string): string {
 
 export type BaseUrls = {
   publicBaseUrl: string;
-  portalBaseUrl: string;
+  userBaseUrl: string;
   staffBaseUrl: string;
   apiBaseUrl?: string;
 };
 
 export function getBaseUrls(): BaseUrls {
   const publicBaseUrl = stripTrailingSlash(requireEnv("PB_PUBLIC_BASE_URL"));
-  const portalBaseUrl = stripTrailingSlash(requireEnv("PB_PORTAL_BASE_URL"));
+  const userBaseUrl = stripTrailingSlash(requireEnv("PB_USER_BASE_URL"));
   const staffBaseUrl = stripTrailingSlash(requireEnv("PB_STAFF_BASE_URL"));
   const apiBaseUrl = optionalEnv("PB_API_BASE_URL");
 
   return {
     publicBaseUrl,
-    portalBaseUrl,
+    userBaseUrl,
     staffBaseUrl,
     apiBaseUrl: apiBaseUrl ? stripTrailingSlash(apiBaseUrl) : undefined,
   };

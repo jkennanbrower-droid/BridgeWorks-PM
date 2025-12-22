@@ -10,5 +10,9 @@
     "./redirect": "./src/redirect.ts",
     "./http": "./src/http.ts",
     "./health": "./src/health.ts"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   }
 }

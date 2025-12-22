@@ -73,6 +73,7 @@ type SortableWidgetProps = {
   customizeMode: boolean;
   onResize: (nextSize: WidgetSize) => void;
   children: ReactNode;
+  className?: string;
 };
 
 function SortableWidget({
@@ -83,6 +84,7 @@ function SortableWidget({
   customizeMode,
   onResize,
   children,
+  className,
 }: SortableWidgetProps) {
   const {
     attributes,
@@ -99,7 +101,11 @@ function SortableWidget({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? "z-10" : ""}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${className ?? ""} ${isDragging ? "z-10" : ""}`}
+    >
       <WidgetFrame
         title={title}
         sizePreset={sizePreset}
@@ -124,6 +130,39 @@ export function OverviewModule({
   );
 
   const widgetIds = layout.widgets.map((widget) => widget.id);
+  const urgentWidget = layout.widgets.find(
+    (widget) => widget.type === "urgent_attention",
+  );
+  const otherWidgets = layout.widgets.filter(
+    (widget) => widget.type !== "urgent_attention",
+  );
+
+  const renderWidget = (widget: (typeof layout.widgets)[number]) => {
+    const registry = widgetRegistry[widget.type];
+    if (!registry) return null;
+    const WidgetComponent = registry.component;
+    return (
+      <SortableWidget
+        key={widget.id}
+        widgetId={widget.id}
+        title={registry.title}
+        sizePreset={widget.sizePreset}
+        allowedSizes={registry.allowedSizes}
+        customizeMode={customizeMode}
+        onResize={(nextSize) => {
+          const nextWidgets = layout.widgets.map((item) =>
+            item.id === widget.id
+              ? { ...item, sizePreset: nextSize }
+              : item,
+          );
+          onLayoutChange({ widgets: nextWidgets });
+        }}
+        className="h-full"
+      >
+        <WidgetComponent />
+      </SortableWidget>
+    );
+  };
 
   return (
     <section className="space-y-6">
@@ -156,32 +195,11 @@ export function OverviewModule({
         }}
       >
         <SortableContext items={widgetIds} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-12 gap-4 auto-rows-[minmax(120px,auto)] grid-flow-row-dense">
-            {layout.widgets.map((widget) => {
-              const registry = widgetRegistry[widget.type];
-              if (!registry) return null;
-              const WidgetComponent = registry.component;
-              return (
-                <SortableWidget
-                  key={widget.id}
-                  widgetId={widget.id}
-                  title={registry.title}
-                  sizePreset={widget.sizePreset}
-                  allowedSizes={registry.allowedSizes}
-                  customizeMode={customizeMode}
-                  onResize={(nextSize) => {
-                    const nextWidgets = layout.widgets.map((item) =>
-                      item.id === widget.id
-                        ? { ...item, sizePreset: nextSize }
-                        : item,
-                    );
-                    onLayoutChange({ widgets: nextWidgets });
-                  }}
-                >
-                  <WidgetComponent />
-                </SortableWidget>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+            {urgentWidget ? renderWidget(urgentWidget) : null}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:grid-rows-2 md:auto-rows-fr">
+              {otherWidgets.map((widget) => renderWidget(widget))}
+            </div>
           </div>
         </SortableContext>
       </DndContext>

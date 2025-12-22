@@ -12,11 +12,12 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.879.0",
     "@clerk/nextjs": "^6.36.5",
+    "@sentry/nextjs": "^10.32.1",
     "db": "file:../../packages/db",
     "next": "16.0.10",
     "pg": "^8.16.3",
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "shared": "file:../../packages/shared"
   },
   "devDependencies": {

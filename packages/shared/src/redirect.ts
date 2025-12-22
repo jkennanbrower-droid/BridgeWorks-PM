@@ -9,8 +9,8 @@ export function toLoginUrl(): string {
   return joinUrl(getBaseUrls().publicBaseUrl, "/login");
 }
 
-export function toPortalUrl(path = "/"): string {
-  return joinUrl(getBaseUrls().portalBaseUrl, path);
+export function toUserUrl(path = "/"): string {
+  return joinUrl(getBaseUrls().userBaseUrl, path);
 }
 
 export function toStaffUrl(path = "/"): string {

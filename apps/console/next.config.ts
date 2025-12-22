@@ -44,6 +44,10 @@ const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const nextConfig: NextConfig = {
   transpilePackages: ["shared", "db"],
   ...(basePath ? { basePath } : {}),
+  experimental: {
+    serverSourceMaps: false,
+    turbopackSourceMaps: false,
+  },
 };
 
 export default nextConfig;

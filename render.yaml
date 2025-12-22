@@ -27,7 +27,7 @@ services:
         sync: false
       - key: PB_STAFF_BASE_URL
         sync: false
-      - key: PB_PORTAL_BASE_URL
+      - key: PB_USER_BASE_URL
         sync: false
   - type: web
     name: bridgeworks-org

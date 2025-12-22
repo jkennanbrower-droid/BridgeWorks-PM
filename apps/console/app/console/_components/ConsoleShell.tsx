@@ -17,8 +17,8 @@ export function ConsoleShell({ children, person }: ConsoleShellProps) {
   const envLabel = process.env.NEXT_PUBLIC_APP_ENV ?? process.env.NODE_ENV ?? "dev";
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="flex min-h-screen flex-col lg:flex-row">
+    <main className="h-screen overflow-hidden bg-slate-50 text-slate-900">
+      <div className="flex h-full flex-col lg:flex-row">
         <aside className="w-full border-b border-slate-200 bg-white lg:w-64 lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between px-6 py-5 lg:flex-col lg:items-start lg:gap-3">
             <div>
@@ -40,8 +40,8 @@ export function ConsoleShell({ children, person }: ConsoleShellProps) {
           <SidebarNav />
         </aside>
 
-        <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="flex h-full flex-1 flex-col overflow-hidden">
+          <header className="z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-6 py-4">
               <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -76,7 +76,7 @@ export function ConsoleShell({ children, person }: ConsoleShellProps) {
             </div>
           </header>
 
-          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-y-auto px-6 py-8">
             {children}
           </div>
         </div>
