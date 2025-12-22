@@ -419,12 +419,12 @@ function getSelfBaseUrl(req) {
   return `${proto || req.protocol || "http"}://${host}`;
 }
 
-async function fetchWithTimeout(url, { timeoutMs = 4000, headers } = {}) {
+async function fetchWithTimeout(url, { timeoutMs = 5000, headers } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   try {
-    const res = await fetch(url, { signal: controller.signal, headers });
+    const res = await fetch(url, { signal: controller.signal, headers, redirect: "manual" });
     const latencyMs = performance.now() - started;
     return { res, latencyMs };
   } finally {
@@ -438,6 +438,33 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
     const ok = res.ok;
     let json = null;
     const contentType = res.headers.get("content-type") || "";
+    let preview = null;
+    if (!ok) {
+      preview = await res
+        .text()
+        .then((text) => text.slice(0, 200))
+        .catch(() => null);
+      logger.warn(
+        {
+          check: {
+            name,
+            url,
+            status: res.status,
+            latencyMs: Math.round(latencyMs),
+            redirected: res.status >= 300 && res.status < 400,
+            location: res.headers.get("location"),
+            headers: {
+              server: res.headers.get("server"),
+              cfRay: res.headers.get("cf-ray"),
+              cfCacheStatus: res.headers.get("cf-cache-status"),
+              contentType,
+            },
+            preview,
+          },
+        },
+        "ops/status check failed",
+      );
+    }
     if (contentType.includes("application/json")) {
       json = await res.json().catch(() => null);
     }
@@ -451,6 +478,18 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
       json,
     };
   } catch (e) {
+    logger.warn(
+      {
+        check: {
+          name,
+          url,
+          pathChecked,
+          status: 0,
+          error: e instanceof Error ? e.message : String(e),
+        },
+      },
+      "ops/status check threw",
+    );
     return {
       name,
       url,
@@ -465,9 +504,7 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
 
 async function checkServiceReachable(name, baseUrl) {
   const base = baseUrl.replace(/\/+$/, "");
-  const health = await checkUrl(name, `${base}/api/health`, "/api/health", 4000);
-  if (health.status !== 404) return health;
-  return await checkUrl(name, `${base}/`, "/", 4000);
+  return await checkUrl(name, `${base}/api/health`, "/api/health", 5000);
 }
 
 function optionalBaseUrl(envKey, fallback) {
@@ -478,8 +515,8 @@ function optionalBaseUrl(envKey, fallback) {
 async function probeServices(selfBase, timestampMs) {
   const services = [];
   try {
-    services.push(await checkUrl("API /health", `${selfBase}/health`, "/health", 2500));
-    services.push(await checkUrl("API /health/db", `${selfBase}/health/db`, "/health/db", 3500));
+    services.push(await checkUrl("API /health", `${selfBase}/health`, "/health", 5000));
+    services.push(await checkUrl("API /health/db", `${selfBase}/health/db`, "/health/db", 5000));
     services.push(
       await checkServiceReachable(
         "Public",
@@ -510,7 +547,6 @@ async function probeServices(selfBase, timestampMs) {
         optionalBaseUrl("NEXT_PUBLIC_CONSOLE_APP_URL", "https://console.bridgeworkspm.com"),
       ),
     );
-    services.push(await checkUrl("API root", `${selfBase}/`, "/", 2500));
   } catch (e) {
     services.push({
       name: "ops/status",
