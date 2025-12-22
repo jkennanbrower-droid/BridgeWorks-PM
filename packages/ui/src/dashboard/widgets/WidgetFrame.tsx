@@ -22,13 +22,15 @@ const sizeClasses: Record<WidgetSize, string> = {
   tall: "col-span-12 xl:col-span-6 row-span-2 min-h-[320px]",
 };
 
+const defaultSizes: WidgetSize[] = ["sm", "md", "lg"];
+
 function getNextSize(
   current: WidgetSize,
   allowedSizes: WidgetSize[] | undefined,
 ): WidgetSize {
   const sizes = allowedSizes && allowedSizes.length
     ? allowedSizes
-    : ["sm", "md", "lg"];
+    : defaultSizes;
   const index = sizes.indexOf(current);
   if (index === -1) return sizes[0];
   return sizes[(index + 1) % sizes.length];

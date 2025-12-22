@@ -14,6 +14,9 @@ type ActionState = {
   error?: string;
 };
 
+type PlatformRole = (typeof PLATFORM_ROLES)[number];
+type PersonStatus = (typeof PERSON_STATUSES)[number];
+
 const PLATFORM_ROLE_SET = new Set<string>(PLATFORM_ROLES);
 const PERSON_STATUS_SET = new Set<string>(PERSON_STATUSES);
 
@@ -37,7 +40,7 @@ function requireEmail(formData: FormData) {
   return email;
 }
 
-function readOptionalRole(formData: FormData) {
+function readOptionalRole(formData: FormData): PlatformRole | null {
   const value = formData.get("platformRole");
   if (typeof value !== "string") {
     throw new Error("Missing platform role.");
@@ -49,15 +52,15 @@ function readOptionalRole(formData: FormData) {
   if (!PLATFORM_ROLE_SET.has(trimmed)) {
     throw new Error("Select a valid platform role.");
   }
-  return trimmed;
+  return trimmed as PlatformRole;
 }
 
-function requireStatus(formData: FormData) {
+function requireStatus(formData: FormData): PersonStatus {
   const status = requireString(formData, "status");
   if (!PERSON_STATUS_SET.has(status)) {
     throw new Error("Select a valid status.");
   }
-  return status;
+  return status as PersonStatus;
 }
 
 function splitName(name: string | null) {

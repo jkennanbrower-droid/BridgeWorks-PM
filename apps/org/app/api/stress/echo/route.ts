@@ -1,22 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireOpsTestAccess } from "shared/ops";
+import { parsePositiveInt } from "shared/numbers";
 
 import { httpMetrics } from "../../../_telemetry/httpMetrics";
 
 export const runtime = "nodejs";
-
-function parsePositiveInt(
-  value: string | null,
-  { min = 0, max = 256 * 1024, fallback = min } = {},
-): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  const rounded = Math.floor(parsed);
-  if (rounded < min) return min;
-  if (rounded > max) return max;
-  return rounded;
-}
 
 function sleepMs(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

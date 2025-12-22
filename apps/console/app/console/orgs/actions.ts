@@ -15,6 +15,9 @@ type ActionState = {
   orgId?: string;
 };
 
+type OrgStatus = (typeof ORG_STATUSES)[number];
+type HealthStatus = (typeof HEALTH_STATUSES)[number];
+
 const ORG_STATUS_SET = new Set<string>(ORG_STATUSES);
 const HEALTH_STATUS_SET = new Set<string>(HEALTH_STATUSES);
 
@@ -54,21 +57,21 @@ function readOptionalEmail(formData: FormData, field: string) {
   return value.toLowerCase();
 }
 
-function requireOrgStatus(formData: FormData) {
+function requireOrgStatus(formData: FormData): OrgStatus {
   const status = requireString(formData, "status");
   if (!ORG_STATUS_SET.has(status)) {
     throw new Error("Select a valid status.");
   }
-  return status;
+  return status as OrgStatus;
 }
 
-function readOptionalHealthStatus(formData: FormData) {
+function readOptionalHealthStatus(formData: FormData): HealthStatus | null {
   const value = readOptionalString(formData, "healthStatus");
   if (!value) return null;
   if (!HEALTH_STATUS_SET.has(value)) {
     throw new Error("Select a valid health status.");
   }
-  return value;
+  return value as HealthStatus;
 }
 
 function readBoolean(formData: FormData, field: string) {

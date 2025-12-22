@@ -10,6 +10,7 @@
     "./redirect": "./src/redirect.ts",
     "./http": "./src/http.ts",
     "./health": "./src/health.ts",
+    "./numbers": "./src/numbers.ts",
     "./ops": "./src/ops.ts"
   },
   "dependencies": {

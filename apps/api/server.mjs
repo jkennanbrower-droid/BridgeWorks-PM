@@ -311,7 +311,10 @@ function parseCsv(value) {
     .filter(Boolean);
 }
 
-function parsePositiveInt(value, { min = 0, max = 1_000_000, fallback = min } = {}) {
+function parsePositiveInt(value, options = {}) {
+  const min = options.min ?? 0;
+  const max = options.max ?? 1_000_000;
+  const fallback = options.fallback ?? min;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   const rounded = Math.floor(parsed);

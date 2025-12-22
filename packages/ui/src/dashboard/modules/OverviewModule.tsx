@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import {
   DndContext,
@@ -33,7 +33,7 @@ type OverviewModuleProps = {
 
 type WidgetRegistryItem = {
   title: string;
-  component: () => JSX.Element;
+  component: () => ReactElement;
   allowedSizes: WidgetSize[];
 };
 
