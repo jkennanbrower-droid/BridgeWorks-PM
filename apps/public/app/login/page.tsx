@@ -16,8 +16,10 @@ type Portal = {
   icon: React.ReactNode;
 };
 
-const staffBaseUrl = process.env.PB_STAFF_BASE_URL;
-const userBaseUrl = process.env.PB_USER_BASE_URL;
+const staffBaseUrl =
+  process.env.NEXT_PUBLIC_STAFF_APP_URL ?? process.env.PB_STAFF_BASE_URL;
+const userBaseUrl =
+  process.env.NEXT_PUBLIC_USER_APP_URL ?? process.env.PB_USER_BASE_URL;
 const orgBaseUrl = process.env.NEXT_PUBLIC_ORG_APP_URL;
 const consoleBaseUrl = process.env.NEXT_PUBLIC_CONSOLE_APP_URL;
 const isMissingBaseUrl = !staffBaseUrl || !userBaseUrl;

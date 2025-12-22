@@ -25,6 +25,10 @@ services:
         sync: false
       - key: NEXT_PUBLIC_CONSOLE_APP_URL
         sync: false
+      - key: NEXT_PUBLIC_USER_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_STAFF_APP_URL
+        sync: false
       - key: PB_STAFF_BASE_URL
         sync: false
       - key: PB_USER_BASE_URL

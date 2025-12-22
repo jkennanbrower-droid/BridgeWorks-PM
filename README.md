@@ -161,6 +161,13 @@ If the site renders but looks completely unstyled, check the browser network tab
 
 An example blueprint is included at `render.yaml`.
 
+## Deploying to Render (Console App)
+
+- **Build Command**: `npm run render:build:console`
+- **Start Command**: `npm run render:start:console`
+
+The Render blueprint at `render.yaml` also defines `bridgeworks-console` with a health check at `/api/ready`.
+
 ## SaaS-style API Architecture
 
 Best practice is to keep a single backend API service (`apps/api`) and make the Next apps (public/staff/user) call it.
