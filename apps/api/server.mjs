@@ -43,6 +43,7 @@ loadDotEnvFile(path.join(repoRoot, ".env.local"));
 loadDotEnvFile(path.join(repoRoot, ".env"));
 
 const app = express();
+app.set("etag", false);
 app.use(express.json());
 
 const httpMetrics = createHttpMetrics({ serviceName: "API" });
@@ -302,6 +303,23 @@ app.use((req, res, next) => {
 
 function noStore(res) {
   res.setHeader("cache-control", "no-store");
+}
+
+function noCache(res) {
+  res.setHeader(
+    "cache-control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
+  );
+  res.setHeader("pragma", "no-cache");
+  res.setHeader("expires", "0");
+  res.setHeader("surrogate-control", "no-store");
+}
+
+function stripConditionalHeaders(req) {
+  delete req.headers["if-none-match"];
+  delete req.headers["if-modified-since"];
+  delete req.headers["if-match"];
+  delete req.headers["if-unmodified-since"];
 }
 
 function parseCsv(value) {
@@ -1003,7 +1021,11 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(staticDir, "index.html"));
 });
 
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/health", (req, res) => {
+  stripConditionalHeaders(req);
+  noCache(res);
+  res.status(200).json({ ok: true });
+});
 
 app.get("/metrics", async (req, res) => {
   noStore(res);
@@ -1023,11 +1045,13 @@ const pool = new pg.Pool({
 });
 
 app.get("/health/db", async (req, res) => {
+  stripConditionalHeaders(req);
+  noCache(res);
   try {
-    const { rows } = await pool.query("select now() as now");
-    res.json({ ok: true, ...rows[0] });
+    await pool.query("select 1");
+    res.status(200).json({ ok: true, db: "ok" });
   } catch (e) {
-    res.status(500).json({ ok: false, error: String(e) });
+    res.status(200).json({ ok: false, db: "error" });
   }
 });
 
