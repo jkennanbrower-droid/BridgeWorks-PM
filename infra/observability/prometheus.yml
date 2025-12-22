@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: bridgeworks-public
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3100"]
+  - job_name: bridgeworks-staff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3101"]
+  - job_name: bridgeworks-user
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3102"]
+  - job_name: bridgeworks-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3103"]
+  - job_name: bridgeworks-org
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3104"]
+  - job_name: bridgeworks-console
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3105"]
+

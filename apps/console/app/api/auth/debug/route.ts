@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
+import { httpMetrics } from "../../../_telemetry/httpMetrics";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-export async function GET() {
+async function handleGET() {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieNames = cookieStore.getAll().map((c) => c.name);
@@ -22,3 +24,7 @@ export async function GET() {
     },
   });
 }
+
+export const GET = httpMetrics.withRouteHandler(handleGET, {
+  route: "/api/auth/debug",
+});

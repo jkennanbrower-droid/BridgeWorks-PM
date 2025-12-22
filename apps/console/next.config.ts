@@ -43,7 +43,7 @@ const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["shared", "db"],
+  transpilePackages: ["shared", "db", "telemetry-metrics"],
   ...(basePath ? { basePath } : {}),
   experimental: {
     serverSourceMaps: false,

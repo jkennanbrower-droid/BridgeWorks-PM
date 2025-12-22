@@ -29,7 +29,8 @@
     "react-countup": "^6.5.3",
     "react-dom": "18.2.0",
     "recharts": "^3.6.0",
-    "shared": "file:../../packages/shared"
+    "shared": "file:../../packages/shared",
+    "telemetry-metrics": "file:../../packages/telemetry-metrics"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -115,6 +115,8 @@ services:
     buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm db:generate && corepack pnpm -C apps/api run build
     startCommand: corepack pnpm -C apps/api run start
     envVars:
+      - key: PROMETHEUS_BASE_URL
+        value: http://bridgeworks-observability:9090
       - key: DATABASE_URL
         sync: false
       - key: CLERK_SECRET_KEY
@@ -131,3 +133,9 @@ services:
         sync: false
       - key: R2_UPLOAD_TOKEN
         sync: false
+
+  - type: pserv
+    name: bridgeworks-observability
+    env: docker
+    dockerfilePath: infra/observability/Dockerfile
+    healthCheckPath: /-/ready

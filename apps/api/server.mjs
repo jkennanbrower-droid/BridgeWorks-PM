@@ -8,6 +8,7 @@ import multer from "multer";
 import pg from "pg";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import promClient from "prom-client";
+import { createHttpMetrics } from "telemetry-metrics";
 import pino from "pino";
 import pinoHttp from "pino-http";
 import pinoPretty from "pino-pretty";
@@ -44,8 +45,7 @@ loadDotEnvFile(path.join(repoRoot, ".env"));
 const app = express();
 app.use(express.json());
 
-const promRegistry = promClient.register;
-promClient.collectDefaultMetrics({ register: promRegistry });
+const httpMetrics = createHttpMetrics({ serviceName: "API" });
 
 function createRingBuffer(limit) {
   const items = [];
@@ -154,22 +154,10 @@ const dependencyMetrics1m = createBucketStore({ bucketMs: 60_000, maxBuckets: 24
 const dependencyMetrics5m = createBucketStore({ bucketMs: 5 * 60_000, maxBuckets: 7 * 24 * 12 });
 const stressRuns = new Map();
 
-const httpRequestDurationMs = new promClient.Histogram({
-  name: "bw_api_http_request_duration_ms",
-  help: "API HTTP request duration in ms",
-  labelNames: ["method", "route", "status"],
-  buckets: [25, 50, 100, 250, 500, 1000, 2000, 4000],
-});
-
-const httpRequestCount = new promClient.Counter({
-  name: "bw_api_http_request_count",
-  help: "API HTTP request count",
-  labelNames: ["method", "route", "status"],
-});
-
 const serviceCheckLatencyMs = new promClient.Histogram({
   name: "bw_ops_service_check_latency_ms",
   help: "Ops service check latency in ms",
+  registers: [httpMetrics.registry],
   labelNames: ["service"],
   buckets: [25, 50, 100, 250, 500, 1000, 2000, 4000],
 });
@@ -177,12 +165,14 @@ const serviceCheckLatencyMs = new promClient.Histogram({
 const serviceCheckTotal = new promClient.Counter({
   name: "bw_ops_service_check_total",
   help: "Ops service check total",
+  registers: [httpMetrics.registry],
   labelNames: ["service", "result"],
 });
 
 const dependencyProbeLatencyMs = new promClient.Histogram({
   name: "bw_ops_dependency_probe_latency_ms",
   help: "Dependency probe latency in ms",
+  registers: [httpMetrics.registry],
   labelNames: ["dependency"],
   buckets: [25, 50, 100, 250, 500, 1000, 2000, 4000],
 });
@@ -190,6 +180,7 @@ const dependencyProbeLatencyMs = new promClient.Histogram({
 const dependencyProbeTotal = new promClient.Counter({
   name: "bw_ops_dependency_probe_total",
   help: "Dependency probe total",
+  registers: [httpMetrics.registry],
   labelNames: ["dependency", "result"],
 });
 
@@ -280,16 +271,13 @@ app.use(
   }),
 );
 
+app.use(httpMetrics.expressMiddleware);
+
 app.use((req, res, next) => {
   const start = performance.now();
   res.on("finish", () => {
     const route = req.route?.path ?? req.path ?? "unknown";
     const duration = performance.now() - start;
-    const status = String(res.statusCode);
-    httpRequestDurationMs
-      .labels(req.method, route, status)
-      .observe(duration);
-    httpRequestCount.labels(req.method, route, status).inc();
     recordServiceSample("API", {
       ok: res.statusCode < 500,
       latencyMs: duration,
@@ -542,6 +530,88 @@ function parseRangeMs(range) {
     default:
       return 60 * 60 * 1000;
   }
+}
+
+function parsePrometheusNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function getPrometheusBaseUrl() {
+  const raw = process.env.PROMETHEUS_BASE_URL ?? "http://localhost:9090";
+  return String(raw).trim().replace(/\/+$/, "");
+}
+
+function pickStepSec(rangeMs) {
+  if (rangeMs <= 60 * 60 * 1000) return 15;
+  if (rangeMs <= 6 * 60 * 60 * 1000) return 30;
+  if (rangeMs <= 24 * 60 * 60 * 1000) return 60;
+  return 300;
+}
+
+async function prometheusQueryRange(query, { startSec, endSec, stepSec }) {
+  const base = getPrometheusBaseUrl();
+  const url = new URL(`${base}/api/v1/query_range`);
+  url.searchParams.set("query", query);
+  url.searchParams.set("start", String(startSec));
+  url.searchParams.set("end", String(endSec));
+  url.searchParams.set("step", String(stepSec));
+
+  const { res } = await fetchWithTimeout(url.toString(), { timeoutMs: 8000 });
+  if (!res.ok) {
+    throw new Error(`Prometheus query_range ${res.status}`);
+  }
+  const payload = await res.json().catch(() => null);
+  if (!payload || payload.status !== "success") {
+    throw new Error(payload?.error ?? "Prometheus query_range failed");
+  }
+  return Array.isArray(payload.data?.result) ? payload.data.result : [];
+}
+
+async function prometheusQueryInstant(query, { timeSec } = {}) {
+  const base = getPrometheusBaseUrl();
+  const url = new URL(`${base}/api/v1/query`);
+  url.searchParams.set("query", query);
+  if (typeof timeSec === "number") {
+    url.searchParams.set("time", String(timeSec));
+  }
+
+  const { res } = await fetchWithTimeout(url.toString(), { timeoutMs: 8000 });
+  if (!res.ok) {
+    throw new Error(`Prometheus query ${res.status}`);
+  }
+  const payload = await res.json().catch(() => null);
+  if (!payload || payload.status !== "success") {
+    throw new Error(payload?.error ?? "Prometheus query failed");
+  }
+  return Array.isArray(payload.data?.result) ? payload.data.result : [];
+}
+
+function buildTimeline(startMs, endMs, stepSec) {
+  const startSec = Math.floor(startMs / 1000);
+  const endSec = Math.floor(endMs / 1000);
+  const epochSecs = [];
+  const timestamps = [];
+  for (let t = startSec; t <= endSec; t += stepSec) {
+    epochSecs.push(t);
+    timestamps.push(new Date(t * 1000).toISOString());
+  }
+  return { startSec, endSec, stepSec, epochSecs, timestamps };
+}
+
+function extractSingleMatrixValues(result) {
+  const first = Array.isArray(result) ? result[0] : null;
+  const values = first?.values;
+  return Array.isArray(values) ? values : [];
+}
+
+function fillSeries(epochSecs, matrixValues) {
+  const bySec = new Map();
+  for (const entry of matrixValues) {
+    const sec = Math.round(Number(entry?.[0]));
+    bySec.set(sec, entry?.[1]);
+  }
+  return epochSecs.map((sec) => parsePrometheusNumber(bySec.get(sec)));
 }
 
 function normalizeServiceName(name) {
@@ -934,8 +1004,8 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.get("/metrics", async (req, res) => {
   noStore(res);
-  res.setHeader("Content-Type", promRegistry.contentType);
-  res.end(await promRegistry.metrics());
+  res.setHeader("Content-Type", httpMetrics.registry.contentType);
+  res.end(await httpMetrics.metricsText());
 });
 
 const connectionString = process.env.DATABASE_URL;
@@ -1037,7 +1107,75 @@ app.get("/ops/status", async (req, res) => {
     storage: storageHealth,
   };
 
-  res.json({ api, db, services, dependencies });
+  let prometheus = null;
+  try {
+    const servicesMatcher = 'service=~"PUBLIC|USER|STAFF|ORG|API|CONSOLE"';
+    const reqPerMinByService = await prometheusQueryInstant(
+      `sum by (service) (rate(bw_http_requests_total{${servicesMatcher}}[1m])) * 60`,
+    );
+    const errRateByService = await prometheusQueryInstant(
+      `sum by (service) (rate(bw_http_requests_total{${servicesMatcher},status=~"5.."}[5m])) / sum by (service) (rate(bw_http_requests_total{${servicesMatcher}}[5m]))`,
+    );
+    const p95ByService = await prometheusQueryInstant(
+      `histogram_quantile(0.95, sum by (service,le) (rate(bw_http_request_duration_ms_bucket{${servicesMatcher}}[5m])))`,
+    );
+
+    const metricsByService = new Map();
+    for (const item of reqPerMinByService) {
+      const service = normalizeServiceName(item?.metric?.service);
+      metricsByService.set(service, { requestsPerMin: parsePrometheusNumber(item?.value?.[1]) });
+    }
+    for (const item of errRateByService) {
+      const service = normalizeServiceName(item?.metric?.service);
+      const current = metricsByService.get(service) ?? {};
+      metricsByService.set(service, {
+        ...current,
+        errorRate: parsePrometheusNumber(item?.value?.[1]),
+      });
+    }
+    for (const item of p95ByService) {
+      const service = normalizeServiceName(item?.metric?.service);
+      const current = metricsByService.get(service) ?? {};
+      metricsByService.set(service, {
+        ...current,
+        latencyP95: parsePrometheusNumber(item?.value?.[1]),
+      });
+    }
+
+    const servicesList = Array.from(metricsByService.entries()).map(([service, values]) => ({
+      service,
+      requestsPerMin: values.requestsPerMin ?? null,
+      errorRate: values.errorRate ?? null,
+      latencyP95: values.latencyP95 ?? null,
+    }));
+
+    const avg = (field) => {
+      const nums = servicesList
+        .map((item) => item[field])
+        .filter((value) => typeof value === "number" && Number.isFinite(value));
+      if (!nums.length) return null;
+      return nums.reduce((sum, value) => sum + value, 0) / nums.length;
+    };
+
+    prometheus = {
+      ok: true,
+      baseUrl: getPrometheusBaseUrl(),
+      platform: {
+        requestsPerMin: avg("requestsPerMin"),
+        errorRate: avg("errorRate"),
+        latencyP95: avg("latencyP95"),
+      },
+      services: servicesList,
+    };
+  } catch (error) {
+    prometheus = {
+      ok: false,
+      baseUrl: getPrometheusBaseUrl(),
+      error: error instanceof Error ? error.message : "Prometheus error",
+    };
+  }
+
+  res.json({ api, db, services, dependencies, prometheus });
 });
 
 app.post("/ops/test/run", async (req, res) => {
@@ -1065,6 +1203,18 @@ app.post("/ops/test/run", async (req, res) => {
 });
 
 app.get("/ops/stress/echo", async (req, res) => {
+  noStore(res);
+  const bytes = parsePositiveInt(req.query.bytes, { min: 0, max: 256 * 1024, fallback: 256 });
+  const delayMs = parsePositiveInt(req.query.ms, { min: 0, max: 10_000, fallback: 0 });
+  if (delayMs > 0) {
+    await sleepMs(delayMs);
+  }
+  const payload = Buffer.alloc(bytes, 97);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.send(payload);
+});
+
+app.get("/api/stress/echo", requireOpsAccess, async (req, res) => {
   noStore(res);
   const bytes = parsePositiveInt(req.query.bytes, { min: 0, max: 256 * 1024, fallback: 256 });
   const delayMs = parsePositiveInt(req.query.ms, { min: 0, max: 10_000, fallback: 0 });
@@ -1144,31 +1294,86 @@ app.get("/ops/stress/status", (req, res) => {
   return res.json(buildStressStatus(run));
 });
 
-app.get("/ops/metrics", (req, res) => {
+app.get("/ops/metrics", async (req, res) => {
   noStore(res);
   const range = String(req.query.range ?? "1h");
-  const service = String(req.query.service ?? "platform");
+  const requestedService = String(req.query.service ?? "platform");
   const rangeMs = parseRangeMs(range);
-  const { serviceStore, dependencyStore } = selectMetricsStores(rangeMs);
-  const isPlatform = service.toLowerCase() === "platform" || service.toLowerCase() === "all";
-  const series = isPlatform
-    ? getPlatformSeries(rangeMs, serviceStore)
-    : getServiceSeries(service, rangeMs, serviceStore);
-  const dependencyTimestamps = collectDependencyTimestamps(rangeMs, dependencyStore);
-  const timestamps = series.timestamps.length > 0 ? series.timestamps : dependencyTimestamps;
-  const filledSeries =
-    series.timestamps.length > 0 ? series : buildEmptySeries(timestamps);
-  const dependency = buildDependencySeries(timestamps, rangeMs, dependencyStore);
+  const stepSec = pickStepSec(rangeMs);
 
-  res.json({
-    ok: true,
-    range,
-    service,
-    generatedAt: new Date().toISOString(),
-    empty: filledSeries.timestamps.length === 0,
-    ...filledSeries,
-    dependency,
-  });
+  const endMs = Date.now();
+  const startMs = endMs - rangeMs;
+  const timeline = buildTimeline(startMs, endMs, stepSec);
+
+  const isPlatform =
+    requestedService.toLowerCase() === "platform" ||
+    requestedService.toLowerCase() === "all";
+  const serviceLabel = isPlatform
+    ? 'service=~"PUBLIC|USER|STAFF|ORG|API|CONSOLE"'
+    : `service="${normalizeServiceName(requestedService)}"`;
+
+  const queryRequestsPerMin = `sum(rate(bw_http_requests_total{${serviceLabel}}[1m])) * 60`;
+  const queryErrorRate = `sum(rate(bw_http_requests_total{${serviceLabel},status=~"5.."}[5m])) / sum(rate(bw_http_requests_total{${serviceLabel}}[5m]))`;
+  const queryLatency = (q) =>
+    `histogram_quantile(${q}, sum by (le) (rate(bw_http_request_duration_ms_bucket{${serviceLabel}}[5m])))`;
+
+  try {
+    const [reqResult, errResult, p50Result, p95Result, p99Result] = await Promise.all([
+      prometheusQueryRange(queryRequestsPerMin, timeline),
+      prometheusQueryRange(queryErrorRate, timeline),
+      prometheusQueryRange(queryLatency(0.5), timeline),
+      prometheusQueryRange(queryLatency(0.95), timeline),
+      prometheusQueryRange(queryLatency(0.99), timeline),
+    ]);
+
+    const requestsPerMin = fillSeries(
+      timeline.epochSecs,
+      extractSingleMatrixValues(reqResult),
+    );
+    const errorRate = fillSeries(
+      timeline.epochSecs,
+      extractSingleMatrixValues(errResult),
+    );
+    const latencyP50 = fillSeries(
+      timeline.epochSecs,
+      extractSingleMatrixValues(p50Result),
+    );
+    const latencyP95 = fillSeries(
+      timeline.epochSecs,
+      extractSingleMatrixValues(p95Result),
+    );
+    const latencyP99 = fillSeries(
+      timeline.epochSecs,
+      extractSingleMatrixValues(p99Result),
+    );
+
+    const anyData =
+      requestsPerMin.some((v) => typeof v === "number") ||
+      errorRate.some((v) => typeof v === "number") ||
+      latencyP95.some((v) => typeof v === "number");
+
+    res.json({
+      ok: true,
+      service: isPlatform ? "platform" : normalizeServiceName(requestedService),
+      range,
+      stepSec,
+      generatedAt: new Date().toISOString(),
+      empty: !anyData,
+      timestamps: timeline.timestamps,
+      requestsPerMin,
+      errorRate,
+      latencyP50,
+      latencyP95,
+      latencyP99,
+    });
+  } catch (error) {
+    res.status(502).json({
+      ok: false,
+      range,
+      service: isPlatform ? "platform" : normalizeServiceName(requestedService),
+      error: error instanceof Error ? error.message : "Prometheus error",
+    });
+  }
 });
 
 app.get("/ops/errors", (req, res) => {

@@ -54,6 +54,7 @@ export type OpsMetricsResponse = {
   ok: boolean;
   range: string;
   service: string;
+  stepSec: number;
   generatedAt: string;
   empty: boolean;
   timestamps: string[];

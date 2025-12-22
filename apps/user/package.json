@@ -17,6 +17,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "shared": "file:../../packages/shared",
+    "telemetry-metrics": "file:../../packages/telemetry-metrics",
     "ui": "file:../../packages/ui"
   },
   "devDependencies": {

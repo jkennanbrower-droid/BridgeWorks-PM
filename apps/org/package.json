@@ -2,6 +2,7 @@
   "name": "@bridgeworks/org",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3104",
     "build": "next build",
@@ -16,6 +17,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "shared": "file:../../packages/shared",
+    "telemetry-metrics": "file:../../packages/telemetry-metrics",
     "ui": "file:../../packages/ui"
   },
   "devDependencies": {

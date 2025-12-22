@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "db";
+import { httpMetrics } from "../../_telemetry/httpMetrics";
+
+export const runtime = "nodejs";
 
 const PORTFOLIO_TYPES = new Set([
   "Residential",
@@ -38,7 +41,7 @@ function parseOptionalInt(value: unknown): number | null | "invalid" {
   return parsed;
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const payload = await request.json().catch(() => null);
   if (!payload || typeof payload !== "object") {
     return NextResponse.json(
@@ -144,3 +147,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = httpMetrics.withRouteHandler(handlePOST, {
+  route: "/api/onboarding-application",
+});

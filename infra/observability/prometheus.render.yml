@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: bridgeworks-public
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-public:10000"]
+  - job_name: bridgeworks-staff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-staff:10000"]
+  - job_name: bridgeworks-user
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-user:10000"]
+  - job_name: bridgeworks-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-api:10000"]
+  - job_name: bridgeworks-org
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-org:10000"]
+  - job_name: bridgeworks-console
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bridgeworks-console:10000"]
+

@@ -9,7 +9,8 @@
     "./urls": "./src/urls.ts",
     "./redirect": "./src/redirect.ts",
     "./http": "./src/http.ts",
-    "./health": "./src/health.ts"
+    "./health": "./src/health.ts",
+    "./ops": "./src/ops.ts"
   },
   "dependencies": {
     "react": "18.2.0",

@@ -1,7 +1,12 @@
 import { proxyOps } from "../../_proxy";
+import { httpMetrics } from "../../../../_telemetry/httpMetrics";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   return proxyOps(request, "stress/status");
 }
+
+export const GET = httpMetrics.withRouteHandler(handleGET, {
+  route: "/api/ops/stress/status",
+});

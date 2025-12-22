@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { requireOpsTestAccess } from "shared/ops";
+
+import { httpMetrics } from "../../../_telemetry/httpMetrics";
+
+export const runtime = "nodejs";
 
 function parsePositiveInt(
   value: string | null,
@@ -17,7 +22,9 @@ function sleepMs(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
+  const denied = requireOpsTestAccess(request);
+  if (denied) return denied;
   const { searchParams } = new URL(request.url);
   const bytes = parsePositiveInt(searchParams.get("bytes"), {
     min: 0,
@@ -42,3 +49,7 @@ export async function GET(request: Request) {
     },
   });
 }
+
+export const GET = httpMetrics.withRouteHandler(handleGET, {
+  route: "/api/stress/echo",
+});

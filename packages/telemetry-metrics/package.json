@@ -1,0 +1,17 @@
+{
+  "name": "telemetry-metrics",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "prom-client": "^15.1.3"
+  }
+}
+
