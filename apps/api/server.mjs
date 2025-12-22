@@ -432,8 +432,18 @@ async function fetchWithTimeout(url, { timeoutMs = 5000, headers } = {}) {
   }
 }
 
-function join(base, path) {
-  return base.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
+function errorCode(error) {
+  if (!error || typeof error !== "object") return null;
+  const code = error.code;
+  if (typeof code === "string" && code.length) return code;
+  const cause = error.cause;
+  if (!cause || typeof cause !== "object") return null;
+  const causeCode = cause.code;
+  return typeof causeCode === "string" && causeCode.length ? causeCode : null;
+}
+
+function resolveUrl(baseUrl, path) {
+  return new URL(String(path), String(baseUrl)).toString();
 }
 
 async function checkUrl(name, url, pathChecked, timeoutMs) {
@@ -476,6 +486,7 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
       latencyMs: Math.round(latencyMs),
     };
   } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
     logger.debug(
       {
         check: {
@@ -483,7 +494,9 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
           url,
           pathChecked,
           status: 0,
-          error: e instanceof Error ? e.message : String(e),
+          errorName: err.name,
+          errorMessage: err.message,
+          errorCode: errorCode(err),
         },
       },
       "ops/status check threw",
@@ -498,16 +511,50 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
   }
 }
 
-async function checkServiceReachable(name, baseUrl) {
+async function checkServiceReachable(name, baseEnvKey) {
+  const pathChecked = "/api/health";
+  const baseUrl = process.env[baseEnvKey];
   if (!baseUrl) {
     logger.debug(
-      { check: { name, url: null, pathChecked: "/api/health", status: 0, error: "Missing base URL" } },
+      {
+        check: {
+          name,
+          url: null,
+          pathChecked,
+          status: 0,
+          errorName: "MissingBaseUrl",
+          errorMessage: `Missing ${baseEnvKey}`,
+          errorCode: null,
+        },
+      },
       "ops/status check threw",
     );
-    return { name, pathChecked: "/api/health", ok: false, status: 0, latencyMs: null };
+    return { name, pathChecked, ok: false, status: 0, latencyMs: null };
   }
-  const url = join(String(baseUrl), "/api/health");
-  return await checkUrl(name, url, "/api/health", 5000);
+
+  let url = null;
+  try {
+    url = resolveUrl(baseUrl, pathChecked);
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    logger.debug(
+      {
+        check: {
+          name,
+          url: String(url),
+          pathChecked,
+          status: 0,
+          errorName: err.name,
+          errorMessage: err.message,
+          errorCode: errorCode(err),
+        },
+      },
+      "ops/status check threw",
+    );
+    return { name, pathChecked, ok: false, status: 0, latencyMs: null };
+  }
+
+  return await checkUrl(name, url, pathChecked, 5000);
 }
 
 function envUrl(envKey) {
@@ -525,14 +572,14 @@ function getLocalApiBaseUrl() {
 async function probeServices(selfBase, timestampMs) {
   const services = [];
   try {
-    const apiBase = getLocalApiBaseUrl();
-    services.push(await checkUrl("API /health", join(apiBase, "/health"), "/health", 5000));
-    services.push(await checkUrl("API /health/db", join(apiBase, "/health/db"), "/health/db", 5000));
-    services.push(await checkServiceReachable("Public", process.env.PUBLIC_INTERNAL_URL));
-    services.push(await checkServiceReachable("User", process.env.USER_INTERNAL_URL));
-    services.push(await checkServiceReachable("Staff", process.env.STAFF_INTERNAL_URL));
-    services.push(await checkServiceReachable("Org", process.env.ORG_INTERNAL_URL));
-    services.push(await checkServiceReachable("Console", process.env.CONSOLE_INTERNAL_URL));
+    const apiBase = process.env.INTERNAL_API_BASE_URL ?? getLocalApiBaseUrl();
+    services.push(await checkUrl("API /health", resolveUrl(apiBase, "/health"), "/health", 5000));
+    services.push(await checkUrl("API /health/db", resolveUrl(apiBase, "/health/db"), "/health/db", 5000));
+    services.push(await checkServiceReachable("Public", "INTERNAL_PUBLIC_BASE_URL"));
+    services.push(await checkServiceReachable("User", "INTERNAL_USER_BASE_URL"));
+    services.push(await checkServiceReachable("Staff", "INTERNAL_STAFF_BASE_URL"));
+    services.push(await checkServiceReachable("Org", "INTERNAL_ORG_BASE_URL"));
+    services.push(await checkServiceReachable("Console", "INTERNAL_CONSOLE_BASE_URL"));
   } catch (e) {
     services.push({
       name: "ops/status",
