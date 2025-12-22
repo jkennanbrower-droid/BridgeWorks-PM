@@ -432,6 +432,10 @@ async function fetchWithTimeout(url, { timeoutMs = 5000, headers } = {}) {
   }
 }
 
+function join(base, path) {
+  return base.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
+}
+
 async function checkUrl(name, url, pathChecked, timeoutMs) {
   try {
     const { res, latencyMs } = await fetchWithTimeout(url, { timeoutMs });
@@ -443,7 +447,7 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
         .text()
         .then((text) => text.slice(0, 200))
         .catch(() => null);
-      logger.warn(
+      logger.debug(
         {
           check: {
             name,
@@ -472,7 +476,7 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
       latencyMs: Math.round(latencyMs),
     };
   } catch (e) {
-    logger.warn(
+    logger.debug(
       {
         check: {
           name,
@@ -495,8 +499,15 @@ async function checkUrl(name, url, pathChecked, timeoutMs) {
 }
 
 async function checkServiceReachable(name, baseUrl) {
-  const base = baseUrl.replace(/\/+$/, "");
-  return await checkUrl(name, `${base}/api/health`, "/api/health", 5000);
+  if (!baseUrl) {
+    logger.debug(
+      { check: { name, url: null, pathChecked: "/api/health", status: 0, error: "Missing base URL" } },
+      "ops/status check threw",
+    );
+    return { name, pathChecked: "/api/health", ok: false, status: 0, latencyMs: null };
+  }
+  const url = join(String(baseUrl), "/api/health");
+  return await checkUrl(name, url, "/api/health", 5000);
 }
 
 function envUrl(envKey) {
@@ -504,10 +515,6 @@ function envUrl(envKey) {
   if (!value) return null;
   const trimmed = String(value).trim();
   return trimmed.length ? trimmed : null;
-}
-
-function pickServiceBaseUrl(internalEnvKey, publicEnvKey, fallbackPublicUrl) {
-  return envUrl(internalEnvKey) ?? envUrl(publicEnvKey) ?? fallbackPublicUrl;
 }
 
 function getLocalApiBaseUrl() {
@@ -519,50 +526,13 @@ async function probeServices(selfBase, timestampMs) {
   const services = [];
   try {
     const apiBase = getLocalApiBaseUrl();
-    services.push(await checkUrl("API /health", `${apiBase}/health`, "/health", 5000));
-    services.push(await checkUrl("API /health/db", `${apiBase}/health/db`, "/health/db", 5000));
-    services.push(
-      await checkServiceReachable(
-        "Public",
-        pickServiceBaseUrl(
-          "PUBLIC_INTERNAL_URL",
-          "NEXT_PUBLIC_PUBLIC_APP_URL",
-          "https://www.bridgeworkspm.com",
-        ),
-      ),
-    );
-    services.push(
-      await checkServiceReachable(
-        "User",
-        pickServiceBaseUrl("USER_INTERNAL_URL", "NEXT_PUBLIC_USER_APP_URL", "https://user.bridgeworkspm.com"),
-      ),
-    );
-    services.push(
-      await checkServiceReachable(
-        "Staff",
-        pickServiceBaseUrl(
-          "STAFF_INTERNAL_URL",
-          "NEXT_PUBLIC_STAFF_APP_URL",
-          "https://staff.bridgeworkspm.com",
-        ),
-      ),
-    );
-    services.push(
-      await checkServiceReachable(
-        "Org",
-        pickServiceBaseUrl("ORG_INTERNAL_URL", "NEXT_PUBLIC_ORG_APP_URL", "https://org.bridgeworkspm.com"),
-      ),
-    );
-    services.push(
-      await checkServiceReachable(
-        "Console",
-        pickServiceBaseUrl(
-          "CONSOLE_INTERNAL_URL",
-          "NEXT_PUBLIC_CONSOLE_APP_URL",
-          "https://console.bridgeworkspm.com",
-        ),
-      ),
-    );
+    services.push(await checkUrl("API /health", join(apiBase, "/health"), "/health", 5000));
+    services.push(await checkUrl("API /health/db", join(apiBase, "/health/db"), "/health/db", 5000));
+    services.push(await checkServiceReachable("Public", process.env.PUBLIC_INTERNAL_URL));
+    services.push(await checkServiceReachable("User", process.env.USER_INTERNAL_URL));
+    services.push(await checkServiceReachable("Staff", process.env.STAFF_INTERNAL_URL));
+    services.push(await checkServiceReachable("Org", process.env.ORG_INTERNAL_URL));
+    services.push(await checkServiceReachable("Console", process.env.CONSOLE_INTERNAL_URL));
   } catch (e) {
     services.push({
       name: "ops/status",
