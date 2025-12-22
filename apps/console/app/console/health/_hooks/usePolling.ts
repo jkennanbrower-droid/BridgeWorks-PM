@@ -78,6 +78,6 @@ export function usePolling<T>(
     isLoading,
     isRefreshing,
     lastUpdated,
-    refresh: () => load(false),
+    refresh: useCallback(() => load(false), [load]),
   };
 }

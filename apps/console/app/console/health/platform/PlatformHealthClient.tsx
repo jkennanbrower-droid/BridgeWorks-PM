@@ -136,6 +136,19 @@ export function PlatformHealthClient() {
     });
   }, [manualServices, status.data]);
 
+  const dependenciesSnapshot =
+    manualDependencies ??
+    (dependenciesStatus.data
+      ? {
+          db: dependenciesStatus.data.db,
+          auth: dependenciesStatus.data.auth,
+          storage: dependenciesStatus.data.storage,
+        }
+      : null) ??
+    status.data?.dependencies ??
+    null;
+  const dependencies = dependenciesSnapshot;
+
   const counts = useMemo(() => {
     const degraded = serviceSnapshots.filter((s) => s.status === "degraded").length;
     const outage = serviceSnapshots.filter((s) => s.status === "outage").length;
@@ -217,7 +230,7 @@ export function PlatformHealthClient() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [stressRunId, isStressRunning, platformMetrics]);
+  }, [stressRunId, isStressRunning, platformMetrics.refresh]);
 
   const avgLatency = useMemo(() => {
     const values = serviceSnapshots
@@ -270,24 +283,11 @@ export function PlatformHealthClient() {
     };
   }, [platformMetrics.data]);
 
-  const dependenciesSnapshot =
-    manualDependencies ??
-    (dependenciesStatus.data
-      ? {
-          db: dependenciesStatus.data.db,
-          auth: dependenciesStatus.data.auth,
-          storage: dependenciesStatus.data.storage,
-        }
-      : null) ??
-    status.data?.dependencies ??
-    null;
-
   const lastUpdated = manualUpdatedAt
     ? new Date(manualUpdatedAt)
     : status.data?.api.timestamp
       ? new Date(status.data.api.timestamp)
       : null;
-  const dependencies = dependenciesSnapshot;
   const dataAgeMs = lastUpdated ? Date.now() - lastUpdated.getTime() : null;
   const staleThresholdMs = refreshMs > 0 ? refreshMs * 2 : 300_000;
   const isStale =
@@ -551,7 +551,7 @@ function DependencyTile({ label, status, onRetry }: DependencyTileProps) {
         ? status?.message ?? "Not configured"
         : state === "unhealthy"
           ? status?.message ?? "Probe failed"
-          : "Telemetry pending";
+          : "Awaiting check";
 
   return (
     <div className={`rounded-xl border px-3 py-3 text-sm ${tone}`}>

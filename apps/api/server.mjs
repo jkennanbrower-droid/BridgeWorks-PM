@@ -859,7 +859,11 @@ async function executeStressRun(run) {
     const requestStart = performance.now();
     let ok = false;
     try {
-      const res = await fetch(url.toString(), { cache: "no-store" });
+      const headers = {};
+      if (target.key === "api" && process.env.OPS_KEY) {
+        headers["x-ops-key"] = process.env.OPS_KEY;
+      }
+      const res = await fetch(url.toString(), { cache: "no-store", headers });
       ok = res.ok;
     } catch {
       ok = false;

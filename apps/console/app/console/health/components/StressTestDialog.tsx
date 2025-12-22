@@ -298,6 +298,14 @@ export function StressTestDialog({
                       </div>
                     ))}
                   </div>
+                  {status?.skippedTargets?.length ? (
+                    <div className="mt-3 text-xs text-slate-500">
+                      Skipped:{" "}
+                      {status.skippedTargets
+                        .map((target) => `${target.key} (${target.reason})`)
+                        .join(", ")}
+                    </div>
+                  ) : null}
                 </motion.div>
               ) : null}
             </AnimatePresence>
