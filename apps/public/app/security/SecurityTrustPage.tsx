@@ -4,7 +4,7 @@
  * Public-facing Trust Center page; replace placeholder content before launch.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -28,6 +28,7 @@ import { VulnerabilityDisclosure } from "./components/VulnerabilityDisclosure";
 import { FaqSearch } from "./components/FaqSearch";
 import { StatusEmbedCard } from "./components/StatusEmbedCard";
 import { mockTrustData } from "./lib/mockTrustData";
+import { ScrollToButtons } from "../components/ScrollToButtons";
 
 type ToastItem = {
   id: string;
@@ -111,6 +112,22 @@ export function SecurityTrustPage() {
   const [activeTab, setActiveTab] = useState<TrustTabId>("overview");
   const tabs = mockTrustData.tabs;
 
+  const isProgrammaticScrollRef = useRef(false);
+  const programmaticTimerRef = useRef<number | null>(null);
+
+  const tabIds = useMemo(
+    () =>
+      [
+        "overview",
+        "controls",
+        "compliance",
+        "privacy",
+        "vulnerability",
+        "faq",
+      ] as const satisfies readonly TrustTabId[],
+    []
+  );
+
   const overviewRef = useRef<HTMLElement | null>(null);
   const controlsRef = useRef<HTMLElement | null>(null);
   const complianceRef = useRef<HTMLElement | null>(null);
@@ -118,20 +135,11 @@ export function SecurityTrustPage() {
   const vulnerabilityRef = useRef<HTMLElement | null>(null);
   const faqRef = useRef<HTMLElement | null>(null);
 
-  const tabToRef: Record<TrustTabId, typeof overviewRef> = {
-    overview: overviewRef,
-    controls: controlsRef,
-    compliance: complianceRef,
-    privacy: privacyRef,
-    vulnerability: vulnerabilityRef,
-    faq: faqRef,
-  };
-
   const scrollToTab = useCallback((tab: TrustTabId) => {
-    const el = tabToRef[tab]?.current;
+    const el = document.getElementById(`tab-${tab}`);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [tabToRef]);
+  }, []);
 
   // Keep tabs in sync with URL hash (#tab-xyz)
   useEffect(() => {
@@ -141,6 +149,13 @@ export function SecurityTrustPage() {
       if (match) {
         const tab = match[1] as TrustTabId;
         setActiveTab(tab);
+        isProgrammaticScrollRef.current = true;
+        if (programmaticTimerRef.current) {
+          window.clearTimeout(programmaticTimerRef.current);
+        }
+        programmaticTimerRef.current = window.setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 900);
         window.setTimeout(() => scrollToTab(tab), 0);
       }
     };
@@ -150,11 +165,61 @@ export function SecurityTrustPage() {
     return () => window.removeEventListener("hashchange", applyHash);
   }, [scrollToTab]);
 
+  // Keep the active tab accurate while scrolling.
+  useEffect(() => {
+    const els = tabIds
+      .map((id) => document.getElementById(`tab-${id}`))
+      .filter((el): el is HTMLElement => Boolean(el));
+
+    if (els.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (isProgrammaticScrollRef.current) return;
+
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0));
+
+        const best = visible[0];
+        if (!best?.target?.id) return;
+
+        const tab = best.target.id.replace(/^tab-/, "") as TrustTabId;
+        if (!tabIds.includes(tab)) return;
+
+        setActiveTab((prev) => (prev === tab ? prev : tab));
+
+        const hash = window.location.hash || "";
+        // Don’t clobber deep links like #control-xyz.
+        if (!hash || hash.startsWith("#tab-")) {
+          window.history.replaceState(null, "", `#tab-${tab}`);
+        }
+      },
+      {
+        // Account for sticky tabs bar.
+        rootMargin: "-25% 0px -60% 0px",
+        threshold: [0, 0.1, 0.2, 0.35, 0.5, 0.75],
+      }
+    );
+
+    for (const el of els) observer.observe(el);
+    return () => observer.disconnect();
+  }, [tabIds]);
+
   const setTab = useCallback((tab: TrustTabId) => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", `#tab-${tab}`);
     }
+
+    isProgrammaticScrollRef.current = true;
+    if (programmaticTimerRef.current) {
+      window.clearTimeout(programmaticTimerRef.current);
+    }
+    programmaticTimerRef.current = window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 900);
+
     scrollToTab(tab);
   }, [scrollToTab]);
 
@@ -179,20 +244,24 @@ export function SecurityTrustPage() {
 
   return (
     <main className="min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white">
+      <ScrollToButtons />
       <TrustHero
         onRequestPacket={() => setIsPacketModalOpen(true)}
         onViewControls={() => setTab("controls")}
       />
 
-      <section className={cn(layout.sectionTight, "pt-6")}
-        aria-labelledby="at-a-glance"
+      <section
+        className={layout.sectionTight}
+        aria-labelledby="at-a-glance-title"
         id="at-a-glance"
       >
         <div className={layout.container}>
           <div className="flex items-end justify-between gap-6">
             <div>
               <p className={layout.eyebrow}>At a glance</p>
-              <h2 id="at-a-glance" className={cn(layout.h2, "mt-3 text-2xl sm:text-3xl")}
+              <h2
+                id="at-a-glance-title"
+                className={cn(layout.h2, "mt-3 text-2xl sm:text-3xl")}
               >
                 Practical controls, built in.
               </h2>
@@ -255,7 +324,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-overview"
           aria-labelledby="overview-title"
-          className={layout.section}
+          className={cn(layout.section, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <div className="flex items-center justify-between gap-4">
@@ -418,7 +487,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-controls"
           aria-labelledby="controls-title"
-          className={layout.sectionMuted}
+          className={cn(layout.sectionMuted, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <p className={layout.eyebrow}>Controls</p>
@@ -532,7 +601,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-compliance"
           aria-labelledby="compliance-title"
-          className={layout.section}
+          className={cn(layout.section, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <p className={layout.eyebrow}>Compliance</p>
@@ -618,7 +687,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-privacy"
           aria-labelledby="privacy-title"
-          className={layout.sectionMuted}
+          className={cn(layout.sectionMuted, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <p className={layout.eyebrow}>Privacy</p>
@@ -740,7 +809,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-vulnerability"
           aria-labelledby="vulnerability-title"
-          className={layout.section}
+          className={cn(layout.section, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <p className={layout.eyebrow}>Vulnerability disclosure</p>
@@ -761,7 +830,7 @@ export function SecurityTrustPage() {
           }}
           id="tab-faq"
           aria-labelledby="faq-title"
-          className={layout.sectionMuted}
+          className={cn(layout.sectionMuted, "scroll-mt-24 sm:scroll-mt-28")}
         >
           <div className={layout.container}>
             <p className={layout.eyebrow}>FAQ</p>

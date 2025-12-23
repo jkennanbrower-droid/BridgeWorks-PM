@@ -43,7 +43,7 @@ export function ConsoleShell({ children, person }: ConsoleShellProps) {
         <div className="flex h-full flex-1 flex-col overflow-hidden">
           <header className="z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-6 py-4">
-              <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+              <div className="flex min-w-55 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Search
                 </span>

@@ -68,6 +68,7 @@ type ThreadDetailsPanelProps = {
     tags?: string[];
     dueDate?: string;
     slaDueAt?: string;
+    archivedAt?: string | null;
     linkedWorkOrderId?: string;
     linkedTaskId?: string;
   };
@@ -84,6 +85,7 @@ type ThreadDetailsPanelProps = {
       tags: string[];
       dueDate: string;
       slaDueAt: string;
+      archivedAt: string | null;
       linkedWorkOrderId: string;
       linkedTaskId: string;
     }>,
@@ -350,23 +352,13 @@ export function ThreadDetailsPanel({
   auditEvents,
   onUpdateThread,
 }: ThreadDetailsPanelProps) {
-  const tabs = useMemo(
-    () =>
-      [
-        { id: "info", label: "Info", visible: true },
-        { id: "internal", label: "Internal", visible: isStaffView },
-      ].filter((tab) => tab.visible),
-    [isStaffView],
-  );
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>(
-    tabs[0]?.id ?? "info",
-  );
-
-  const effectiveActiveTab =
-    tabs.find((tab) => tab.id === activeTab)?.id ?? (tabs[0]?.id ?? "info");
+  const effectiveActiveTab = "info";
 
   const canEdit = Boolean(onUpdateThread && threadMeta);
   const [tagDraft, setTagDraft] = useState("");
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+
+  useEffect(() => setArchiveConfirm(false), [threadMeta?.id, isOpen]);
 
   const timeline = useMemo(() => {
     if (auditEvents?.length) {
@@ -405,13 +397,11 @@ export function ThreadDetailsPanel({
     return d.toISOString();
   };
 
-  useEffect(() => {
-    if (!tabs.some((t) => t.id === activeTab)) {
-      setActiveTab(tabs[0]?.id ?? "info");
-    }
-  }, [activeTab, tabs]);
+  // Tabs UI removed (Info-only).
 
   if (!isOpen) return null;
+
+  const isArchived = Boolean(threadMeta?.archivedAt);
 
   return (
     <aside
@@ -424,20 +414,29 @@ export function ThreadDetailsPanel({
             Thread Details
           </h2>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Pin"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300"
-            >
-              <span className="text-xs font-semibold">P</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Expand"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300"
-            >
-              <span className="text-xs font-semibold">⤢</span>
-            </button>
+            {canEdit && threadMeta ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!archiveConfirm) {
+                    setArchiveConfirm(true);
+                    return;
+                  }
+                  setArchiveConfirm(false);
+                  void onUpdateThread?.({ archivedAt: isArchived ? null : new Date().toISOString() });
+                  onClose();
+                }}
+                className={`inline-flex h-9 items-center justify-center rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
+                  archiveConfirm
+                    ? isArchived
+                      ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "border-rose-600 bg-rose-600 text-white hover:bg-rose-700"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                }`}
+              >
+                {archiveConfirm ? "Confirm" : isArchived ? "Restore" : "Archive"}
+              </button>
+            ) : null}
             <button
               type="button"
               aria-label="Close thread details"
@@ -449,28 +448,7 @@ export function ThreadDetailsPanel({
           </div>
         </div>
 
-        <div className="pb-3">
-          <div className="flex w-full items-center gap-1 rounded-full bg-slate-100 p-1">
-            {tabs.map((tab) => {
-              const active = effectiveActiveTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex-1 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                    active
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-600 hover:text-slate-800"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Tab selector removed. */}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -508,14 +486,7 @@ export function ThreadDetailsPanel({
                   |
                 </span>
                 <span>Last activity • {data.lastActivityAtLabel}</span>
-                {data.channel ? (
-                  <>
-                    <span aria-hidden="true" className="text-slate-300">
-                      |
-                    </span>
-                    <Chip label={data.channel} tone="slate" />
-                  </>
-                ) : null}
+                {/* Channel hidden for portal-only messaging (Prompt 1). */}
               </div>              {canEdit ? (
                 <div className="mt-4 space-y-3">
                   <InlineSelect
@@ -588,28 +559,8 @@ export function ThreadDetailsPanel({
                     icon="WO"
                     label={data.linked.workOrder.label}
                     subtext={data.linked.workOrder.subtext}
-                    onClick={
-                      canEdit && !threadMeta?.linkedWorkOrderId
-                        ? () => void onUpdateThread?.({ linkedWorkOrderId: data.linked.workOrder?.label ?? "" })
-                        : undefined
-                    }
                   />
-                ) : (
-                  <LinkedRow
-                    icon="WO"
-                    label="Create work order"
-                    subtext="Link this thread to a new work order"
-                    emphasis
-                    onClick={
-                      canEdit
-                        ? () =>
-                            void onUpdateThread?.({
-                              linkedWorkOrderId: `WO-${Math.floor(1000 + Math.random() * 9000)}`,
-                            })
-                        : undefined
-                    }
-                  />
-                )}
+                ) : null}
               </div>
             </SectionCard>
 
@@ -888,46 +839,6 @@ export function ThreadDetailsPanel({
             </SectionCard>
           </div>
         )}
-      </div>
-
-      <div className="sticky bottom-0 h-16 border-t border-slate-200 bg-white/95 px-4 backdrop-blur">
-        <div className="grid h-full grid-cols-3 items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              void onUpdateThread?.({
-                linkedWorkOrderId:
-                  threadMeta?.linkedWorkOrderId ??
-                  `WO-${Math.floor(1000 + Math.random() * 9000)}`,
-              })
-            }
-            disabled={!canEdit}
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            Create Work Order
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const next = new Date();
-              next.setDate(next.getDate() + 1);
-              next.setHours(10, 0, 0, 0);
-              void onUpdateThread?.({ dueDate: next.toISOString() });
-            }}
-            disabled={!canEdit}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300"
-          >
-            Schedule
-          </button>
-          <button
-            type="button"
-            onClick={() => void onUpdateThread?.({ status: "resolved" })}
-            disabled={!canEdit}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300"
-          >
-            Mark Resolved
-          </button>
-        </div>
       </div>
     </aside>
   );

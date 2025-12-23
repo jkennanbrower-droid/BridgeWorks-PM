@@ -100,9 +100,14 @@ function sortThreads(threads: Thread[], sortKey: ThreadQuery["sortKey"]) {
 function applyThreadQuery(threads: Thread[], query: ThreadQuery) {
   let filtered = [...threads];
 
+  if (query.tab === "archived") {
+    filtered = filtered.filter((t) => Boolean(t.archivedAt));
+  } else {
+    filtered = filtered.filter((t) => !t.archivedAt);
+  }
+
   if (query.tab === "groups") filtered = filtered.filter((t) => t.kind === "group");
   if (query.tab === "unread") filtered = filtered.filter((t) => (t.unreadCount ?? 0) > 0);
-  if (query.tab === "flagged") filtered = filtered.filter((t) => (t.tags ?? []).includes("flagged"));
 
   if (query.status?.length) {
     const allowed = new Set<ThreadStatus>(query.status);
@@ -243,7 +248,8 @@ function seedStore(viewer: ViewerContext): MockStore {
       unitLabel: units[1]!.label,
       assigneeId: "demo-staff-4",
       assigneeLabel: "Mike C.",
-      tags: ["plumbing", "flagged"],
+      archivedAt: nowIso(),
+      tags: ["plumbing"],
       followers: [],
       slaDueAt: minutesAgoIso(45),
       participants: [
@@ -844,6 +850,7 @@ export class MockMessagingClient implements MessagingClient {
         | "tags"
         | "dueDate"
         | "slaDueAt"
+        | "archivedAt"
         | "linkedWorkOrderId"
         | "linkedTaskId"
         | "followers"
@@ -923,6 +930,17 @@ export class MockMessagingClient implements MessagingClient {
         actorLabel: this.store.participantsById[this.viewer.actorId]?.name ?? "You",
         createdAt: updatedAt,
         meta: { slaDueAt: patch.slaDueAt },
+      });
+    }
+    if (typeof patch.archivedAt !== "undefined" && patch.archivedAt !== before.archivedAt) {
+      audit.push({
+        id: newId("ae"),
+        threadId,
+        type: patch.archivedAt ? "thread.archived" : "thread.unarchived",
+        actorId: this.viewer.actorId,
+        actorLabel: this.store.participantsById[this.viewer.actorId]?.name ?? "You",
+        createdAt: updatedAt,
+        meta: { archivedAt: patch.archivedAt },
       });
     }
 

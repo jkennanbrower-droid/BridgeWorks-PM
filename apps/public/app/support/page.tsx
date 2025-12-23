@@ -1,11 +1,13 @@
 import { cn } from "../components/ui/cn";
 import { layout } from "../components/ui/layoutTokens";
+import { ScrollToButtons } from "../components/ScrollToButtons";
 
 export const metadata = { title: "Support" };
 
 export default function Page() {
   return (
     <main className="min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white">
+      <ScrollToButtons />
       <section className={layout.section}>
         <div className={cn(layout.container, "max-w-3xl")}>
           <p className={layout.eyebrow}>Support</p>

@@ -71,6 +71,7 @@ export type Thread = {
   id: string;
   kind: ThreadKind;
   title: string;
+  archivedAt?: string | null;
   status: ThreadStatus;
   priority: ThreadPriority;
   channelDefault: MessagingChannel;
@@ -97,7 +98,7 @@ export type SortKey = "updated_desc" | "updated_asc" | "sla_asc" | "priority_des
 
 export type ThreadQuery = {
   text?: string;
-  tab?: "all" | "groups" | "unread" | "flagged";
+  tab?: "all" | "groups" | "unread" | "archived";
   status?: ThreadStatus[];
   channel?: MessagingChannel[];
   propertyId?: string[];
@@ -108,4 +109,3 @@ export type ThreadQuery = {
   dateTo?: string;
   sortKey?: SortKey;
 };
-

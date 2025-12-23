@@ -13,12 +13,14 @@ import { SecuritySection } from "./components/landing/SecuritySection";
 import { TestimonialsSection } from "./components/landing/TestimonialsSection";
 import { WorkflowSection } from "./components/landing/WorkflowSection";
 import { layout } from "./components/ui/layoutTokens";
+import { ScrollToButtons } from "./components/ScrollToButtons";
 import Link from "next/link";
 
 export default function Page() {
   return (
     <LandingPageClient>
       <main className="bg-white text-slate-900 dark:bg-black dark:text-white">
+        <ScrollToButtons />
         <div className="pb-24 sm:pb-0">
           <HeroSection />
           <ProofStrip />

@@ -204,30 +204,7 @@ export function DashboardShell({
                 >
                   Sign out
                 </button>
-                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <span className="text-slate-400">Layout</span>
-                  <span className="text-slate-700">{layoutLabel}</span>
-                  {onResetLayout ? (
-                    <button
-                      type="button"
-                      onClick={onResetLayout}
-                      className="ml-2 rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500"
-                    >
-                      Reset
-                    </button>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={onCustomizeToggle}
-                  className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide shadow-sm transition ${
-                    customizeMode
-                      ? "bg-slate-900 text-white"
-                      : "border border-slate-200 bg-white text-slate-600"
-                  }`}
-                >
-                  {customizeMode ? "Done" : "Customize"}
-                </button>
+                {/* Layout/customize controls hidden for now. */}
                 <button
                   type="button"
                   aria-label="Notifications"

@@ -4,7 +4,7 @@
  * Public-facing Trust Center page; replace placeholder content before launch.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
@@ -29,7 +29,18 @@ type Props = {
 
 export function TrustTabs({ tabs, activeTab, onChange }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const groupRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Record<TrustTabId, HTMLButtonElement | null>>({
+    overview: null,
+    controls: null,
+    compliance: null,
+    privacy: null,
+    vulnerability: null,
+    faq: null,
+  });
+
   const [isStuck, setIsStuck] = useState(false);
+  const [indicator, setIndicator] = useState<{ x: number; width: number } | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -57,10 +68,58 @@ export function TrustTabs({ tabs, activeTab, onChange }: Props) {
     };
   }, []);
 
-  const activeIndex = useMemo(() => {
-    const idx = tabs.findIndex((t) => t.id === activeTab);
-    return idx < 0 ? 0 : idx;
-  }, [activeTab, tabs]);
+  const setTabRef = (id: TrustTabId) => (el: HTMLButtonElement | null) => {
+    tabRefs.current[id] = el;
+  };
+
+  const updateIndicator = useMemo(() => {
+    return () => {
+      const group = groupRef.current;
+      const activeEl = tabRefs.current[activeTab];
+      if (!group || !activeEl) return;
+
+      const groupRect = group.getBoundingClientRect();
+      const btnRect = activeEl.getBoundingClientRect();
+
+      const next = {
+        x: Math.max(0, btnRect.left - groupRect.left),
+        width: Math.max(0, btnRect.width),
+      };
+
+      setIndicator((prev) => {
+        if (prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.width - next.width) < 0.5) {
+          return prev;
+        }
+        return next;
+      });
+    };
+  }, [activeTab]);
+
+  useLayoutEffect(() => {
+    updateIndicator();
+    // Run again on next frame to catch font/layout settling.
+    const raf = window.requestAnimationFrame(() => updateIndicator());
+    return () => window.cancelAnimationFrame(raf);
+  }, [activeTab, tabs, updateIndicator]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    const onResize = () => updateIndicator();
+    window.addEventListener("resize", onResize);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => updateIndicator());
+      ro.observe(group);
+    }
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      ro?.disconnect();
+    };
+  }, [updateIndicator]);
 
   return (
     <div
@@ -73,17 +132,19 @@ export function TrustTabs({ tabs, activeTab, onChange }: Props) {
       <div className={layout.container}>
         <div className="flex items-center justify-between gap-4 py-3">
           <div className="hidden md:flex" role="tablist" aria-label="Security & Trust sections">
-            <div className="relative inline-flex rounded-2xl border border-black/10 bg-white p-1 dark:border-white/10 dark:bg-slate-950">
-              <motion.div
-                className="absolute left-1 top-1 h-[calc(100%-0.5rem)] rounded-xl bg-slate-100 dark:bg-white/10"
-                initial={false}
-                animate={{
-                  width: `calc((100% - 0px) / ${tabs.length})`,
-                  x: `calc(${activeIndex} * (100% / ${tabs.length}))`,
-                }}
-                transition={{ type: "spring", stiffness: 420, damping: 38 }}
-                aria-hidden="true"
-              />
+            <div
+              ref={groupRef}
+              className="relative inline-flex rounded-2xl border border-black/10 bg-white p-1 dark:border-white/10 dark:bg-slate-950"
+            >
+              {indicator ? (
+                <motion.div
+                  className="absolute inset-y-1 left-0 rounded-xl bg-slate-100 will-change-transform dark:bg-white/10"
+                  initial={false}
+                  animate={{ x: indicator.x, width: indicator.width }}
+                  transition={{ type: "spring", stiffness: 520, damping: 44 }}
+                  aria-hidden="true"
+                />
+              ) : null}
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -92,6 +153,7 @@ export function TrustTabs({ tabs, activeTab, onChange }: Props) {
                   aria-selected={tab.id === activeTab}
                   aria-controls={`tab-${tab.id}`}
                   id={`tab-${tab.id}-trigger`}
+                  ref={setTabRef(tab.id)}
                   className={cn(
                     "relative z-10 h-9 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200",
                     tab.id === activeTab

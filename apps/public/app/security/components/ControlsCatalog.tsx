@@ -70,7 +70,7 @@ function AccordionItem({
   return (
     <div
       id={id}
-      className="rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-slate-950"
+      className="scroll-mt-24 sm:scroll-mt-28 rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-slate-950"
     >
       <button
         type="button"
