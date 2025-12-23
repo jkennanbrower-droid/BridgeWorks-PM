@@ -28,7 +28,7 @@ export function QuickActions({
   };
 
   return (
-    <section id="quick-actions" className={cn(layout.section, "bg-gradient-to-b from-white to-slate-50 dark:from-black dark:to-slate-950")}> 
+    <section id="quick-actions" className={cn(layout.section, "bg-linear-to-b from-white to-slate-50 dark:from-black dark:to-slate-950")}> 
       <div className={layout.container}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

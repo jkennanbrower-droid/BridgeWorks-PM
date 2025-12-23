@@ -70,6 +70,14 @@ enum HealthStatus {
   down
 }
 
+enum AppName {
+  public
+  user
+  staff
+  org
+  console
+}
+
 enum MessagingChannel {
   portal
   sms
@@ -234,6 +242,22 @@ model AuditLog {
   actor Person @relation(fields: [actorPersonId], references: [id])
 
   @@map("audit_log")
+}
+
+model AppSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  app             AppName
+  sessionKey      String   @map("session_key")
+  clerkUserId     String?  @map("clerk_user_id")
+  isAuthenticated Boolean  @default(false) @map("is_authenticated")
+  ip              String?  @db.Text
+  userAgent       String?  @map("user_agent") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  @@unique([app, sessionKey])
+  @@index([app, lastSeenAt])
+  @@map("app_sessions")
 }
 
 model MessagingThread {

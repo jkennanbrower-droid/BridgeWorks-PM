@@ -6,14 +6,7 @@ import { Paperclip, Send } from "lucide-react";
 import { personaConfigs, supportFilters } from "../../lib/mockSupportData";
 import { cn } from "../ui/cn";
 import { layout } from "../ui/layoutTokens";
-import {
-  Badge,
-  Button,
-  Dialog,
-  Input,
-  Select,
-  useToast,
-} from "./ui/primitives";
+import { Badge, Button, Dialog, Select, useToast } from "./ui/primitives";
 
 export function ContactSupportModal({
   open,
@@ -129,7 +122,7 @@ export function ContactSupportModal({
             <textarea
               required
               className={cn(
-                "min-h-[120px] w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200",
+                "min-h-30 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200",
                 layout.focusRing
               )}
               placeholder="Share what happened, recent changes, and expected behavior (placeholder)."

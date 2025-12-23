@@ -56,12 +56,7 @@ export async function ensureOrgId(pool, orgKey) {
     const existing = await pool.query('SELECT id FROM "organizations" WHERE id = $1 LIMIT 1', [key]);
     if (existing.rows.length > 0) return existing.rows[0].id;
     const name = `Demo Org ${key.slice(0, 8)}`;
-    await pool.query('INSERT INTO "organizations" (id, name, slug, status) VALUES ($1, $2, $3, $4)', [
-      key,
-      name,
-      key,
-      "active",
-    ]);
+    await pool.query('INSERT INTO "organizations" (id, name, slug) VALUES ($1, $2, $3)', [key, name, key]);
     return key;
   }
 
@@ -72,12 +67,7 @@ export async function ensureOrgId(pool, orgKey) {
   if (found.rows.length > 0) return found.rows[0].id;
 
   const id = crypto.randomUUID();
-  await pool.query('INSERT INTO "organizations" (id, name, slug, status) VALUES ($1, $2, $3, $4)', [
-    id,
-    `Demo Org ${key}`,
-    key,
-    "active",
-  ]);
+  await pool.query('INSERT INTO "organizations" (id, name, slug) VALUES ($1, $2, $3)', [id, `Demo Org ${key}`, key]);
   return id;
 }
 

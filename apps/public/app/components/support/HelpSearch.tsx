@@ -1,10 +1,8 @@
 "use client";
 
 // Public-facing Support page; placeholder content must be replaced before launch.
-import { useEffect, useMemo, useState, type RefObject } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, type RefObject } from "react";
 import {
-  BookOpen,
   ExternalLink,
   FileSearch2,
   Link as LinkIcon,
@@ -109,31 +107,19 @@ export function HelpSearch({
   onFiltersChange,
   onQueryChange,
 }: {
-  searchInputRef: RefObject<HTMLInputElement>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
   presetFilters?: string[];
   presetQuery?: string;
   onFiltersChange?: (filters: string[]) => void;
   onQueryChange?: (query: string) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState("");
   const [activeTab, setActiveTab] = useState<(typeof tabOrder)[number]["type"]>("all");
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [internalFilters, setInternalFilters] = useState<string[]>([]);
+  const query = presetQuery ?? internalQuery;
+  const activeFilters = presetFilters ?? internalFilters;
+  const loading = false;
   const { pushToast } = useToast();
-
-  useEffect(() => {
-    setLoading(true);
-    const t = setTimeout(() => setLoading(false), 250);
-    return () => clearTimeout(t);
-  }, [query, activeFilters, activeTab]);
-
-  useEffect(() => {
-    if (presetFilters) setActiveFilters(presetFilters);
-  }, [presetFilters]);
-
-  useEffect(() => {
-    if (presetQuery !== undefined) setQuery(presetQuery);
-  }, [presetQuery]);
 
   const results = useMemo(() => {
     const text = query.toLowerCase();
@@ -170,16 +156,15 @@ export function HelpSearch({
   }, []);
 
   const updateQuery = (value: string) => {
-    setQuery(value);
+    if (presetQuery === undefined) setInternalQuery(value);
     onQueryChange?.(value);
   };
 
   const toggleFilter = (filter: string) => {
-    setActiveFilters((prev) => {
-      const next = prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter];
-      onFiltersChange?.(next);
-      return next;
-    });
+    const base = activeFilters;
+    const next = base.includes(filter) ? base.filter((f) => f !== filter) : [...base, filter];
+    if (presetFilters === undefined) setInternalFilters(next);
+    onFiltersChange?.(next);
   };
 
   const handleCopy = (entry: SupportEntry) => {

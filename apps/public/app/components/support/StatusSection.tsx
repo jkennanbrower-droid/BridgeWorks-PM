@@ -25,7 +25,7 @@ export function StatusSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-teal-500/20 bg-gradient-to-br from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
+      <Card className="border-teal-500/20 bg-linear-to-br from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">

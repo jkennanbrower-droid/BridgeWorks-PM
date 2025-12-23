@@ -142,16 +142,16 @@ export class HttpMessagingClient implements MessagingClient {
       assigneeId: query.assigneeId,
       priority: query.priority,
     });
-    return await this.apiJson<{ threads: Thread[] }>(`/api/messaging/threads${qs}`, { method: "GET" });
+    return await this.apiJson<{ threads: Thread[] }>(`/messaging/threads${qs}`, { method: "GET" });
   }
 
   async listMessages(threadId: string): Promise<{ messages: Message[] }> {
     const list = await this.apiJson<{ messages: Message[] }>(
-      `/api/messaging/threads/${encodeURIComponent(threadId)}/messages`,
+      `/messaging/threads/${encodeURIComponent(threadId)}/messages`,
       { method: "GET" },
     );
 
-    void this.apiJson(`/api/messaging/threads/${encodeURIComponent(threadId)}/read`, {
+    void this.apiJson(`/messaging/threads/${encodeURIComponent(threadId)}/read`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
@@ -178,7 +178,7 @@ export class HttpMessagingClient implements MessagingClient {
       return { participantId: id, displayName, role, avatarUrl: resolved?.user?.avatarUrl };
     });
 
-    return await this.apiJson<Thread>(`/api/messaging/threads`, {
+    return await this.apiJson<Thread>(`/messaging/threads`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...input, participants }),
@@ -189,7 +189,7 @@ export class HttpMessagingClient implements MessagingClient {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await this.apiFetch(`/api/r2-upload`, { method: "POST", body: formData });
+    const res = await this.apiFetch(`/r2-upload`, { method: "POST", body: formData });
     const payload = await readJsonOrText(res);
     if (!res.ok || !payload || typeof payload !== "object" || payload.ok !== true) {
       const msg = payload && typeof payload === "object" && "error" in payload ? String(payload.error) : "Upload failed.";
@@ -236,7 +236,7 @@ export class HttpMessagingClient implements MessagingClient {
       });
     }
 
-    return await this.apiJson<Message>(`/api/messaging/threads/${encodeURIComponent(threadId)}/messages`, {
+    return await this.apiJson<Message>(`/messaging/threads/${encodeURIComponent(threadId)}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -255,7 +255,7 @@ export class HttpMessagingClient implements MessagingClient {
   }
 
   async updateThread(threadId: string, patch: any): Promise<Thread> {
-    return await this.apiJson<Thread>(`/api/messaging/threads/${encodeURIComponent(threadId)}`, {
+    return await this.apiJson<Thread>(`/messaging/threads/${encodeURIComponent(threadId)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
@@ -263,7 +263,7 @@ export class HttpMessagingClient implements MessagingClient {
   }
 
   async bulkUpdateThreads(threadIds: string[], action: any): Promise<{ updated: Thread[] }> {
-    return await this.apiJson<{ updated: Thread[] }>(`/api/messaging/threads/bulk`, {
+    return await this.apiJson<{ updated: Thread[] }>(`/messaging/threads/bulk`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ threadIds, action }),
@@ -272,7 +272,7 @@ export class HttpMessagingClient implements MessagingClient {
 
   async searchGlobal(input: { text: string }): Promise<{ threads: Thread[]; messages: Message[]; attachments: Attachment[] }> {
     const qs = `?text=${encodeURIComponent(input.text)}`;
-    return await this.apiJson(`/api/messaging/search${qs}`, { method: "GET" });
+    return await this.apiJson(`/messaging/search${qs}`, { method: "GET" });
   }
 
   getParticipants() {

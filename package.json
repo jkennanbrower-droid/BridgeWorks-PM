@@ -41,10 +41,13 @@
     "dev:all": "node scripts/start-observability.mjs && concurrently -k \"dotenv -e .env.local -- cross-env PORT=3100 pnpm -C apps/public dev\" \"dotenv -e .env.local -- cross-env PORT=3101 pnpm -C apps/staff dev\" \"dotenv -e .env.local -- cross-env PORT=3102 pnpm -C apps/user dev\" \"dotenv -e .env.local -- pnpm -C apps/org dev\" \"dotenv -e .env.local -- pnpm -C apps/console dev\" \"dotenv -e .env.local -- cross-env LOG_PRETTY=1 PORT=3103 pnpm -C apps/api dev\"",
     "dev:all:with-api": "concurrently -k \"dotenv -e .env.local -- cross-env PORT=3100 pnpm -C apps/public dev\" \"dotenv -e .env.local -- cross-env PORT=3101 pnpm -C apps/staff dev\" \"dotenv -e .env.local -- cross-env PORT=3102 pnpm -C apps/user dev\" \"dotenv -e .env.local -- pnpm -C apps/org dev\" \"dotenv -e .env.local -- pnpm -C apps/console dev\" \"dotenv -e .env.local -- cross-env LOG_PRETTY=1 PORT=3103 pnpm -C apps/api dev\"",
     "dev:all:obs": "pnpm dev:all"
-    ,"db:migrate": "pnpm --dir packages/db exec prisma migrate dev",
+    ,"db:migrate": "pnpm --dir packages/db exec prisma migrate deploy",
+    "db:migrate:dev": "pnpm --dir packages/db exec prisma migrate dev",
     "db:generate": "pnpm --dir packages/db exec prisma generate",
     "db:studio": "pnpm --dir packages/db exec prisma studio",
     "db:seed": "pnpm --dir packages/db run seed"
+    ,"db:bootstrap-messaging": "pnpm --dir apps/api exec node scripts/bootstrapMessagingDb.mjs"
+    ,"db:repair": "pnpm --dir packages/db exec node scripts/repairPrismaMigrations.mjs"
   },
   "repository": {
     "type": "git",

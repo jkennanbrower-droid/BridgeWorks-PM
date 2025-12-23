@@ -78,7 +78,7 @@ export function SlaAndEscalation() {
         ))}
       </div>
 
-      <Card className="border-teal-500/20 bg-gradient-to-r from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
+      <Card className="border-teal-500/20 bg-linear-to-r from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Severity guide (placeholder)</CardTitle>
           <Badge className="bg-white text-xs text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Issue wizard</Badge>
@@ -164,7 +164,7 @@ export function SlaAndEscalation() {
             <textarea
               required
               className={cn(
-                "mt-1 min-h-[100px] w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200",
+                "mt-1 min-h-25 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200",
                 layout.focusRing
               )}
               placeholder="Impact, timeline, stakeholders (placeholder)."

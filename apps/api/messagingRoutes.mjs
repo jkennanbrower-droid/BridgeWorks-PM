@@ -41,6 +41,14 @@ function errorJson(res, status, error) {
   return res.status(status).json({ ok: false, error });
 }
 
+function hintForDbError(err) {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/relation \"messaging_/i.test(message) && /does not exist/i.test(message)) {
+    return "Messaging DB schema missing. Run `pnpm db:bootstrap-messaging` (or `pnpm db:migrate`).";
+  }
+  return null;
+}
+
 function buildDemoContext(req) {
   const appId = getHeader(req, "x-demo-app-id") ?? null;
   const orgKey = getHeader(req, "x-demo-org-id") ?? null;
@@ -108,8 +116,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       const result = await listThreads(pool, ctx, query);
       return res.json(result);
     } catch (e) {
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "GET /messaging/threads failed");
-      return errorJson(res, 500, "Failed to list threads.");
+      return errorJson(res, 500, hint ?? "Failed to list threads.");
     }
   });
 
@@ -123,8 +132,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       if (!list) return errorJson(res, 404, "Thread not found.");
       return res.json(list);
     } catch (e) {
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "GET /messaging/threads/:threadId/messages failed");
-      return errorJson(res, 500, "Failed to list messages.");
+      return errorJson(res, 500, hint ?? "Failed to list messages.");
     }
   });
 
@@ -157,8 +167,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       return res.status(201).json(created);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "POST /messaging/threads failed");
-      return errorJson(res, 500, "Failed to create thread.");
+      return errorJson(res, 500, hint ?? "Failed to create thread.");
     }
   });
 
@@ -192,8 +203,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       return res.status(201).json(created);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "POST /messaging/threads/:threadId/messages failed");
-      return errorJson(res, 500, "Failed to send message.");
+      return errorJson(res, 500, hint ?? "Failed to send message.");
     }
   });
 
@@ -222,8 +234,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       return res.json(updated);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "PATCH /messaging/threads/:threadId failed");
-      return errorJson(res, 500, "Failed to update thread.");
+      return errorJson(res, 500, hint ?? "Failed to update thread.");
     }
   });
 
@@ -244,8 +257,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       return res.json(result);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "POST /messaging/threads/bulk failed");
-      return errorJson(res, 500, "Failed to bulk update threads.");
+      return errorJson(res, 500, hint ?? "Failed to bulk update threads.");
     }
   });
 
@@ -258,8 +272,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       const result = await searchGlobal(pool, ctx, text);
       return res.json(result);
     } catch (e) {
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "GET /messaging/search failed");
-      return errorJson(res, 500, "Failed to search.");
+      return errorJson(res, 500, hint ?? "Failed to search.");
     }
   });
 
@@ -273,8 +288,9 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       if (!result) return errorJson(res, 404, "Thread not found.");
       return res.json(result);
     } catch (e) {
+      const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "POST /messaging/threads/:threadId/read failed");
-      return errorJson(res, 500, "Failed to mark read.");
+      return errorJson(res, 500, hint ?? "Failed to mark read.");
     }
   });
 
@@ -284,4 +300,3 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
   app.use("/messaging", router);
   app.use("/api/messaging", router);
 }
-

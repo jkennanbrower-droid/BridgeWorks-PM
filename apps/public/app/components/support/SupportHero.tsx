@@ -49,7 +49,6 @@ export function SupportHero({
               <Badge
                 key={chip}
                 className="cursor-default border-teal-600/30 bg-white/80 text-teal-900 backdrop-blur hover:border-teal-600 dark:bg-slate-950"
-                title={`Placeholder: ${chip}`}
               >
                 <Sparkles className="h-3 w-3" />
                 {chip}
@@ -63,7 +62,7 @@ export function SupportHero({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.35 }}
         >
-          <Card className="relative overflow-hidden border-teal-500/20 bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+          <Card className="relative overflow-hidden border-teal-500/20 bg-linear-to-br from-white via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
             <div className="absolute left-0 top-0 h-24 w-24 -translate-x-8 -translate-y-8 rounded-full bg-teal-400/20 blur-3xl" />
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -92,7 +91,7 @@ export function SupportHero({
                     </div>
                   ))}
                 </div>
-                <div className="rounded-lg border border-dashed border-teal-500/40 bg-gradient-to-r from-teal-50 via-white to-white px-4 py-3 text-xs text-slate-700 dark:from-slate-900 dark:via-slate-950 dark:to-slate-950">
+                <div className="rounded-lg border border-dashed border-teal-500/40 bg-linear-to-r from-teal-50 via-white to-white px-4 py-3 text-xs text-slate-700 dark:from-slate-900 dark:via-slate-950 dark:to-slate-950">
                   <span className="font-semibold text-teal-800 dark:text-teal-200">Status widget placeholder</span>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                     Operational transparency and subscriptions showcased here.

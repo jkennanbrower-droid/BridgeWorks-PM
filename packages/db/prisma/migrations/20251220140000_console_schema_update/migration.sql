@@ -57,15 +57,17 @@ ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "primary_contact_email" TEX
 ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "health_status" "HealthStatus";
 ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ(6);
+ALTER TABLE "organizations" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "organizations" ALTER COLUMN "status" TYPE "OrgStatus" USING ("status"::text::"OrgStatus");
-ALTER TABLE "organizations" ALTER COLUMN "status" SET DEFAULT 'active';
+ALTER TABLE "organizations" ALTER COLUMN "status" SET DEFAULT 'active'::"OrgStatus";
 
 ALTER TABLE "onboarding_applications" ADD COLUMN IF NOT EXISTS "internal_notes" TEXT;
 ALTER TABLE "onboarding_applications" ADD COLUMN IF NOT EXISTS "submitted_at" TIMESTAMPTZ(6);
 ALTER TABLE "onboarding_applications" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "onboarding_applications" ADD COLUMN IF NOT EXISTS "last_error" TEXT;
+ALTER TABLE "onboarding_applications" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "onboarding_applications" ALTER COLUMN "status" TYPE "ApplicationStatus" USING ("status"::text::"ApplicationStatus");
-ALTER TABLE "onboarding_applications" ALTER COLUMN "status" SET DEFAULT 'submitted';
+ALTER TABLE "onboarding_applications" ALTER COLUMN "status" SET DEFAULT 'submitted'::"ApplicationStatus";
 UPDATE "onboarding_applications" SET "submitted_at" = "created_at" WHERE "submitted_at" IS NULL;
 
 ALTER TABLE "invites" ADD COLUMN IF NOT EXISTS "last_error" TEXT;
@@ -73,8 +75,9 @@ ALTER TABLE "invites" ADD COLUMN IF NOT EXISTS "sent_at" TIMESTAMPTZ(6);
 ALTER TABLE "invites" ADD COLUMN IF NOT EXISTS "revoked_at" TIMESTAMPTZ(6);
 ALTER TABLE "invites" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "invites" ALTER COLUMN "role" TYPE "OrgRole" USING ("role"::text::"OrgRole");
+ALTER TABLE "invites" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "invites" ALTER COLUMN "status" TYPE "InviteStatus" USING ("status"::text::"InviteStatus");
-ALTER TABLE "invites" ALTER COLUMN "status" SET DEFAULT 'pending_send';
+ALTER TABLE "invites" ALTER COLUMN "status" SET DEFAULT 'pending_send'::"InviteStatus";
 CREATE UNIQUE INDEX IF NOT EXISTS "invites_org_id_email_role_key" ON "invites"("org_id", "email", "role");
 
 ALTER TABLE "audit_log" ADD COLUMN IF NOT EXISTS "org_id" UUID;

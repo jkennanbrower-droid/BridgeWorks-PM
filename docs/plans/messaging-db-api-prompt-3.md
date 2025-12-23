@@ -13,7 +13,10 @@
 - [x] Phase 3: `HttpMessagingClient` + feature-flag swap, attachments upload via `/api/r2-upload`, keep UI unchanged.
 
 ## After merging
-- Apply migrations: `pnpm db:migrate`
+- Apply DB schema (pick one):
+  - Preferred: `pnpm db:migrate` (deploy/apply-only)
+  - If Prisma migration state is drifted: `pnpm db:bootstrap-messaging`
+  - If Prisma migration checksums/drift block you: `pnpm db:repair` then rerun `pnpm db:migrate`
 
 ## Endpoint contract mapping (MessagingClient → routes)
 - `listThreads(query)` → `GET /api/messaging/threads` (also available at `/messaging/threads`)

@@ -1,7 +1,7 @@
 "use client";
 
 // Public-facing Support page; placeholder content must be replaced before launch.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Headset, Mail, MessageCircle, Ticket } from "lucide-react";
 import {
   bestPracticeGuides,
@@ -50,27 +50,23 @@ export function SupportTabs({
   controlledTab?: string;
   onTabChange?: (tab: string) => void;
 }) {
-  const [tab, setTabState] = useState<string>(controlledTab ?? "self");
+  const isControlled = controlledTab !== undefined;
+  const [internalTab, setInternalTab] = useState<string>(controlledTab ?? "self");
+  const tabValue = isControlled ? controlledTab : internalTab;
   const [ticketOpen, setTicketOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
   const setTab = (value: string) => {
-    setTabState(value);
+    if (!isControlled) setInternalTab(value);
     onTabChange?.(value);
   };
-
-  useEffect(() => {
-    if (controlledTab && controlledTab !== tab) {
-      setTabState(controlledTab);
-    }
-  }, [controlledTab, tab]);
 
   const renderCollectionCard = (collection: (typeof featuredCollections)[number]) => (
     <Card
       key={collection.id}
       className="overflow-hidden border-black/10 bg-white/90 shadow-sm transition hover:-translate-y-1 hover:shadow-md dark:border-white/10 dark:bg-slate-950/90"
     >
-      <div className="h-28 bg-gradient-to-r from-slate-100 via-white to-slate-50 px-4 py-3 text-xs font-semibold text-slate-500 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+      <div className="h-28 bg-linear-to-r from-slate-100 via-white to-slate-50 px-4 py-3 text-xs font-semibold text-slate-500 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
         {collection.imageLabel}
       </div>
       <CardHeader>
@@ -94,7 +90,7 @@ export function SupportTabs({
           </div>
           <select
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 sm:hidden"
-            value={tab}
+            value={tabValue}
             onChange={(event) => setTab(event.target.value)}
             aria-label="Support tab selector"
           >
@@ -106,7 +102,7 @@ export function SupportTabs({
           </select>
         </div>
 
-        <Tabs value={tab} onValueChange={setTab} defaultValue="self" className="mt-6">
+        <Tabs value={tabValue} onValueChange={setTab} defaultValue="self" className="mt-6">
           <div className="sticky top-2 z-10 hidden rounded-xl border border-black/10 bg-white/80 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/80 sm:block">
             <TabsList className="flex flex-wrap gap-2">
               {tabKeys.map((item) => (
@@ -201,8 +197,8 @@ export function SupportTabs({
                   <p>Chat widget placeholder. Use your provider embed here.</p>
                   <div className="rounded-xl border border-dashed border-black/15 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-900">
                     <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Example messages</p>
-                    <p className="mt-1">Support: "Hi! Tell us what's happening."</p>
-                    <p className="mt-1">You: "Placeholder question about payments."</p>
+                    <p className="mt-1">Support: &quot;Hi! Tell us what&#39;s happening.&quot;</p>
+                    <p className="mt-1">You: &quot;Placeholder question about payments.&quot;</p>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setChatOpen(false)}>
                     Close placeholder chat

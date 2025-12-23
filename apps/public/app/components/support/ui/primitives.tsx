@@ -8,7 +8,6 @@ import {
   useEffect,
   useId,
   useMemo,
-  useRef,
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -138,18 +137,17 @@ export function Tabs({
   className?: string;
   children: ReactNode;
 }) {
-  const [value, setValue] = useState(controlledValue ?? defaultValue);
-  useEffect(() => {
-    if (controlledValue) setValue(controlledValue);
-  }, [controlledValue]);
+  const isControlled = controlledValue !== undefined;
+  const [internalValue, setInternalValue] = useState(defaultValue);
+  const currentValue = isControlled ? controlledValue : internalValue;
 
   const handleSet = (next: string) => {
-    setValue(next);
+    if (!isControlled) setInternalValue(next);
     onValueChange?.(next);
   };
 
   return (
-    <TabsContext.Provider value={{ value, setValue: handleSet }}>
+    <TabsContext.Provider value={{ value: currentValue, setValue: handleSet }}>
       <div className={className}>{children}</div>
     </TabsContext.Provider>
   );

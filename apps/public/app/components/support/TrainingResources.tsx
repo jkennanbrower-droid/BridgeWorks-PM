@@ -49,7 +49,7 @@ export function TrainingResources() {
         ))}
       </div>
 
-      <Card className="border-teal-500/20 bg-gradient-to-r from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
+      <Card className="border-teal-500/20 bg-linear-to-r from-white to-slate-50 dark:from-slate-950 dark:to-slate-900">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-teal-600" /> Webinars / office hours (placeholder)
