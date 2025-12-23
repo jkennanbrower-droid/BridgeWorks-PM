@@ -4,7 +4,7 @@
  * Public-facing Trust Center page; replace placeholder content before launch.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -62,7 +62,7 @@ function ToastStack({
 }) {
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(420px,calc(100vw-2rem))] flex-col gap-2"
+      className="pointer-events-none fixed bottom-4 right-4 z-60 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-2"
       aria-live="polite"
       aria-relevant="additions removals"
     >
@@ -118,16 +118,14 @@ export function SecurityTrustPage() {
   const vulnerabilityRef = useRef<HTMLElement | null>(null);
   const faqRef = useRef<HTMLElement | null>(null);
 
-  const tabToRef = useMemo(() => {
-    return {
-      overview: overviewRef,
-      controls: controlsRef,
-      compliance: complianceRef,
-      privacy: privacyRef,
-      vulnerability: vulnerabilityRef,
-      faq: faqRef,
-    } satisfies Record<TrustTabId, typeof overviewRef>;
-  }, []);
+  const tabToRef: Record<TrustTabId, typeof overviewRef> = {
+    overview: overviewRef,
+    controls: controlsRef,
+    compliance: complianceRef,
+    privacy: privacyRef,
+    vulnerability: vulnerabilityRef,
+    faq: faqRef,
+  };
 
   const scrollToTab = useCallback((tab: TrustTabId) => {
     const el = tabToRef[tab]?.current;
@@ -383,7 +381,7 @@ export function SecurityTrustPage() {
                   </div>
 
                   <div className="w-full max-w-xl">
-                    <div className="relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br from-teal-50 via-white to-slate-50 p-6 dark:border-white/10 dark:from-teal-950/30 dark:via-slate-950 dark:to-slate-900">
+                    <div className="relative overflow-hidden rounded-2xl border border-black/10 bg-linear-to-br from-teal-50 via-white to-slate-50 p-6 dark:border-white/10 dark:from-teal-950/30 dark:via-slate-950 dark:to-slate-900">
                       <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_20%_10%,rgba(20,184,166,0.22),transparent_60%),radial-gradient(700px_circle_at_80%_60%,rgba(56,189,248,0.14),transparent_55%)]" />
                       <div className="relative">
                         <div className="text-sm font-semibold text-slate-900 dark:text-white">

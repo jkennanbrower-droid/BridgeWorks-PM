@@ -315,11 +315,11 @@ export function MessagesModule({
 
   const threadDetailsDataEmpty = useMemo<ThreadDetailsPanelData>(
     () => ({
-      title: "-",
-      status: "-",
-      priority: "-",
-      createdAtLabel: "-",
-      lastActivityAtLabel: "-",
+      title: "--",
+      status: "--",
+      priority: "--",
+      createdAtLabel: "--",
+      lastActivityAtLabel: "--",
       linked: {},
       participants: [],
       attachments: [],
@@ -1103,30 +1103,117 @@ export function MessagesModule({
           </aside>
 
           <div className="flex min-w-0 flex-col overflow-hidden bg-white">
-            {/* Conversation header (enhanced in next patch) */}
             <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">
-                  {activeThread?.title ?? "Select a thread"}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {activeThread?.title ?? "Select a thread"}
+                  </p>
+                  {activeThread ? (
+                    <>
+                      <Pill>{activeThread.status}</Pill>
+                      <Pill>{activeThread.priority}</Pill>
+                      <Pill>{activeThread.channelDefault.toUpperCase()}</Pill>
+                    </>
+                  ) : null}
+                </div>
                 <p className="mt-1 truncate text-xs text-slate-500">
                   {activeThread
-                    ? [activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" · ")
-                    : "—"}
+                    ? [activeThread.propertyLabel, activeThread.unitLabel]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : "--"}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setThreadDetailsOpen((v) => !v)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
-                disabled={!activeThread}
-              >
-                <span className="text-xs font-semibold">i</span>
-                <span className="hidden sm:inline">Details</span>
-              </button>
-            </div>
 
-            <div className="relative min-h-0 flex-1" {...getRootProps()}>
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                  <SearchIcon />
+                  <input
+                    type="search"
+                    placeholder="Search in thread"
+                    value={inThreadSearch}
+                    onChange={(e) => setInThreadSearch(e.target.value)}
+                    className="w-44 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                    disabled={!activeThread}
+                  />
+                  <span className="text-xs font-semibold text-slate-500">
+                    {matchData.matchCount
+                      ? `${activeMatchIndex + 1}/${matchData.matchCount}`
+                      : "0"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveMatchIndex((i) =>
+                        matchData.matchCount
+                          ? (i - 1 + matchData.matchCount) % matchData.matchCount
+                          : 0,
+                      )
+                    }
+                    className="h-7 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm"
+                    aria-label="Previous match"
+                    disabled={!matchData.matchCount}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveMatchIndex((i) =>
+                        matchData.matchCount ? (i + 1) % matchData.matchCount : 0,
+                      )
+                    }
+                    className="h-7 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm"
+                    aria-label="Next match"
+                    disabled={!matchData.matchCount}
+                  >
+                    Next
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void updateActiveThread({
+                      linkedWorkOrderId:
+                        activeThread?.linkedWorkOrderId ??
+                        `WO-${Math.floor(1000 + Math.random() * 9000)}`,
+                    })
+                  }
+                  className="hidden sm:inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Create Work Order
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerScheduleOpen((v) => !v)}
+                  className="hidden sm:inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void updateActiveThread({ status: "resolved" })}
+                  className="hidden sm:inline-flex h-10 items-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  disabled={!activeThread}
+                >
+                  Mark Resolved
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThreadDetailsOpen((v) => !v)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  <span className="text-xs font-semibold">i</span>
+                  <span className="hidden sm:inline">Details</span>
+                </button>
+              </div>
+            </div>
+<div className="relative min-h-0 flex-1" {...getRootProps()}>
               <input {...getInputProps()} />
               {isDragActive ? (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-900/10">
@@ -1156,20 +1243,30 @@ export function MessagesModule({
                     </div>
                   </div>
                 ) : (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${m.senderId === viewer.actorId ? "justify-end" : "justify-start"}`}
-                    >
-                      <div className="max-w-[760px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
-                        <p className="text-xs font-semibold text-slate-500">
-                          {m.senderLabel} · {m.channel.toUpperCase()}
-                          {m.scheduledFor ? " · Scheduled" : ""}
-                        </p>
-                        <p className="mt-2 whitespace-pre-wrap leading-6">{m.body}</p>
-                      </div>
-                    </div>
-                  ))
+                  (() => {
+                    let matchIndexOffset = 0;
+                    return messages.map((m) => {
+                      const mine = m.senderId === viewer.actorId;
+                      const matches = matchData.byMessageId.get(m.id) ?? [];
+                      const offset = matchIndexOffset;
+                      matchIndexOffset += matches.length;
+                      return (
+                        <MessageBubble
+                          key={m.id}
+                          mine={mine}
+                          senderLabel={m.senderLabel}
+                          createdAt={m.createdAt}
+                          channel={m.channel}
+                          body={m.body}
+                          matches={matches}
+                          matchIndexOffset={offset}
+                          activeMatchIndex={activeMatchIndex}
+                          attachmentsCount={m.attachments?.length ?? 0}
+                          scheduledFor={m.scheduledFor}
+                        />
+                      );
+                    });
+                  })()
                 )}
               </div>
               {messageListHasMore ? (
@@ -1190,6 +1287,27 @@ export function MessagesModule({
             </div>
 
             <div className="border-t border-slate-200 bg-white px-6 py-3">
+              {composerFiles.length ? (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {composerFiles.map((f) => (
+                    <span
+                      key={`${f.name}-${f.lastModified}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                    >
+                      {f.name}
+                      <button
+                        type="button"
+                        onClick={() => setComposerFiles((prev) => prev.filter((x) => x !== f))}
+                        className="text-slate-400 hover:text-slate-700"
+                        aria-label="Remove attachment"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-3">
                 <select
                   value={composerChannel}
@@ -1243,6 +1361,23 @@ export function MessagesModule({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    const input = document.createElement(\"input\");
+                    input.type = \"file\";
+                    input.multiple = true;
+                    input.onchange = () => {
+                      const files = Array.from(input.files ?? []);
+                      if (files.length) setComposerFiles((prev) => [...prev, ...files]);
+                    };
+                    input.click();
+                  }}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Attach
+                </button>
+                <button
+                  type="button"
                   aria-label="Send message"
                   onClick={() => void sendMessage()}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
@@ -1271,10 +1406,28 @@ export function MessagesModule({
                 </div>
               ) : null}
 
-              {/* canned + attachments + in-thread search + scheduled send + new thread modal in next patches */}
               {composerCannedOpen ? (
-                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  Canned responses (next patch).
+                <div className="relative">
+                  <div className="absolute right-0 top-2 z-20 w-[340px] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    <p className="mb-2 text-xs font-semibold text-slate-500">
+                      Canned responses
+                    </p>
+                    <div className="space-y-1">
+                      {cannedResponses.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setComposerBody((b) => (b ? b + \"\\n\\n\" + c : c));
+                            setComposerCannedOpen(false);
+                          }}
+                          className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
               {composerScheduleOpen ? (
@@ -1321,6 +1474,250 @@ export function MessagesModule({
           />
         </div>
       </div>
+
+      {threadDetailsOpen ? (
+        <div className="xl:hidden">
+          <button
+            type="button"
+            aria-label="Close thread details"
+            onClick={() => setThreadDetailsOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-900/20"
+          />
+          <ThreadDetailsPanel
+            isOpen={threadDetailsOpen}
+            onClose={() => setThreadDetailsOpen(false)}
+            isStaffView={isStaffView}
+            data={activeThread ? threadDetailsData : threadDetailsDataEmpty}
+            className="fixed inset-y-0 right-0 z-50 w-[340px] max-w-[90vw] shadow-xl"
+            onUpdateThread={updateActiveThread}
+            assignees={assigneeOptions}
+            statusOptions={statusOptions}
+            priorityOptions={priorityOptions}
+            auditEvents={auditEvents}
+            threadMeta={
+              activeThread
+                ? {
+                    id: activeThread.id,
+                    linkedWorkOrderId: activeThread.linkedWorkOrderId,
+                    linkedTaskId: activeThread.linkedTaskId,
+                    dueDate: activeThread.dueDate,
+                    slaDueAt: activeThread.slaDueAt,
+                    tags: activeThread.tags ?? [],
+                    assigneeId: activeThread.assigneeId,
+                    assigneeLabel: activeThread.assigneeLabel,
+                    status: activeThread.status,
+                    priority: activeThread.priority,
+                  }
+                : undefined
+            }
+          />
+        </div>
+      ) : null}
+
+      {newThreadOpen ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Close new thread dialog"
+            onClick={() => {
+              setNewThreadOpen(false);
+              resetNewThread();
+            }}
+            className="absolute inset-0 bg-slate-900/20"
+          />
+          <div className="absolute left-1/2 top-1/2 w-[720px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">New Thread</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Demo workflow (Prompt 3 will fetch real tenants/units/templates).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewThreadOpen(false);
+                  resetNewThread();
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-slate-300"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Title</label>
+                <input
+                  value={newThreadTitle}
+                  onChange={(e) => setNewThreadTitle(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm"
+                  placeholder="Subject / summary"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Kind</label>
+                  <select
+                    value={newThreadKind}
+                    onChange={(e) => setNewThreadKind(e.target.value as Thread["kind"])}
+                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  >
+                    <option value="direct">Direct</option>
+                    <option value="group">Group</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Channel</label>
+                  <select
+                    value={newThreadChannel}
+                    onChange={(e) => setNewThreadChannel(e.target.value as MessagingChannel)}
+                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  >
+                    {channelOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Unit</label>
+                <select
+                  value={newThreadUnitId}
+                  onChange={(e) => setNewThreadUnitId(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+                >
+                  <option value="">(none)</option>
+                  {unitOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Template</label>
+                <select
+                  value={newThreadTemplate}
+                  onChange={(e) => setNewThreadTemplate(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+                >
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-600">Participants</label>
+                <input
+                  value={newThreadParticipantQuery}
+                  onChange={(e) => setNewThreadParticipantQuery(e.target.value)}
+                  placeholder="Search people"
+                  className="h-9 w-56 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {newThreadSelectedParticipantIds.map((id) => {
+                  const p = participants.find((x) => x.id === id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setNewThreadSelectedParticipantIds((prev) => prev.filter((x) => x !== id))}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                    >
+                      {p?.name ?? id}
+                      <span className="text-slate-400">×</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 max-h-40 overflow-auto rounded-2xl border border-slate-200">
+                {participants
+                  .filter((p) => p.name.toLowerCase().includes(newThreadParticipantQuery.trim().toLowerCase()))
+                  .slice(0, 20)
+                  .map((p) => {
+                    const selected = newThreadSelectedParticipantIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          setNewThreadSelectedParticipantIds((prev) =>
+                            prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                          )
+                        }
+                        className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm transition ${
+                          selected ? "bg-slate-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="font-semibold text-slate-800">{p.name}</span>
+                        <span className="text-xs font-semibold text-slate-500">{p.role}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-slate-600">Tags</label>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {newThreadTags.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewThreadTags((prev) => prev.filter((x) => x !== t))}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                  >
+                    {t}
+                    <span className="text-slate-400">×</span>
+                  </button>
+                ))}
+                <input
+                  value={newThreadTagDraft}
+                  onChange={(e) => setNewThreadTagDraft(e.target.value)}
+                  placeholder="Add tag"
+                  className="h-9 w-44 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    const value = newThreadTagDraft.trim();
+                    if (!value) return;
+                    setNewThreadTags((prev) => (prev.includes(value) ? prev : [...prev, value]));
+                    setNewThreadTagDraft("");
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewThreadOpen(false);
+                  resetNewThread();
+                }}
+                className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void createThread()}
+                className="h-11 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

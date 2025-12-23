@@ -34,7 +34,7 @@ type ChipIconKey =
   | "vdp"
   | "status";
 
-const chipIconMap: Record<ChipIconKey, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
+const chipIconMap: Record<ChipIconKey, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   mfa: Fingerprint,
   sso: ShieldCheck,
   audit: CheckCircle2,
@@ -70,7 +70,7 @@ function TrustChip({
         onFocus={() => setIsOpen(true)}
         onBlur={() => setIsOpen(false)}
       >
-        <Icon className="h-4 w-4" aria-hidden="true" />
+        <Icon className="h-4 w-4" aria-hidden={true} />
         {label}
       </button>
 
@@ -96,7 +96,7 @@ export function TrustHero({ onRequestPacket, onViewControls }: Props) {
 
   const illustration = useMemo(() => {
     return (
-      <div className="relative overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br from-teal-50 via-white to-slate-50 p-6 shadow-sm dark:border-white/10 dark:from-teal-950/30 dark:via-slate-950 dark:to-slate-900">
+      <div className="relative overflow-hidden rounded-3xl border border-black/10 bg-linear-to-br from-teal-50 via-white to-slate-50 p-6 shadow-sm dark:border-white/10 dark:from-teal-950/30 dark:via-slate-950 dark:to-slate-900">
         <div className="absolute inset-0 opacity-70 [background:radial-gradient(900px_circle_at_15%_0%,rgba(20,184,166,0.22),transparent_60%),radial-gradient(700px_circle_at_85%_70%,rgba(56,189,248,0.14),transparent_55%)]" />
         <div className="relative">
           <div className="flex items-center justify-between gap-3">

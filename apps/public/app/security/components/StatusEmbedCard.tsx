@@ -49,7 +49,7 @@ export function StatusEmbedCard({ title, description, statusHref }: Props) {
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Replace this container with your status provider embed iframe.
           </p>
-          <div className="mt-4 h-24 rounded-xl bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800" />
+          <div className="mt-4 h-24 rounded-xl bg-linear-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800" />
         </div>
       </div>
     </div>

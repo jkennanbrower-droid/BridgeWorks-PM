@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import type { AuditEvent, ThreadPriority, ThreadStatus } from "../../../messaging/types";
 
 export type ThreadDetailsPanelData = {
   title: string;
@@ -57,6 +59,35 @@ type ThreadDetailsPanelProps = {
   isStaffView: boolean;
   data: ThreadDetailsPanelData;
   className?: string;
+  threadMeta?: {
+    id: string;
+    status?: ThreadStatus;
+    priority?: ThreadPriority;
+    assigneeId?: string;
+    assigneeLabel?: string;
+    tags?: string[];
+    dueDate?: string;
+    slaDueAt?: string;
+    linkedWorkOrderId?: string;
+    linkedTaskId?: string;
+  };
+  statusOptions?: ThreadStatus[];
+  priorityOptions?: ThreadPriority[];
+  assignees?: Array<{ id: string; label: string }>;
+  auditEvents?: AuditEvent[];
+  onUpdateThread?: (
+    patch: Partial<{
+      status: ThreadStatus;
+      priority: ThreadPriority;
+      assigneeId: string;
+      assigneeLabel: string;
+      tags: string[];
+      dueDate: string;
+      slaDueAt: string;
+      linkedWorkOrderId: string;
+      linkedTaskId: string;
+    }>,
+  ) => void | Promise<void>;
 };
 
 function IconBox({ label }: { label: string }) {
@@ -117,6 +148,99 @@ function Chip({
     >
       {label}
     </span>
+  );
+}
+
+function FieldLabel({ children }: { children: string }) {
+  return <span className="text-xs font-semibold text-slate-500">{children}</span>;
+}
+
+function InlineSelect({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value?: string;
+  placeholder?: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void | Promise<void>;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value)?.label ?? value ?? "";
+  return (
+    <div className="relative flex items-center justify-between gap-3">
+      <FieldLabel>{label}</FieldLabel>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:opacity-50"
+      >
+        {current || placeholder || "Select"}
+        <span aria-hidden="true" className="text-slate-300">
+          ▼
+        </span>
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-8 z-20 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={async () => {
+                setOpen(false);
+                await onChange(o.value);
+              }}
+              className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InlineTextInput({
+  label,
+  value,
+  placeholder,
+  inputType,
+  onCommit,
+  disabled,
+}: {
+  label: string;
+  value?: string;
+  placeholder?: string;
+  inputType?: string;
+  onCommit: (value: string) => void | Promise<void>;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState(value ?? "");
+
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        type={inputType ?? "text"}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void onCommit(draft)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="h-9 w-44 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm disabled:opacity-50"
+      />
+    </div>
   );
 }
 
@@ -216,6 +340,12 @@ export function ThreadDetailsPanel({
   isStaffView,
   data,
   className,
+  threadMeta,
+  statusOptions,
+  priorityOptions,
+  assignees,
+  auditEvents,
+  onUpdateThread,
 }: ThreadDetailsPanelProps) {
   const tabs = useMemo(
     () =>
@@ -231,6 +361,30 @@ export function ThreadDetailsPanel({
 
   const effectiveActiveTab =
     tabs.find((tab) => tab.id === activeTab)?.id ?? (tabs[0]?.id ?? "info");
+
+  const canEdit = Boolean(onUpdateThread && threadMeta);
+  const [tagDraft, setTagDraft] = useState("");
+
+  const toLocalDateTime = (iso?: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const toIsoDateTime = (value: string) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString();
+  };
+
+  useEffect(() => {
+    if (!tabs.some((t) => t.id === activeTab)) {
+      setActiveTab(tabs[0]?.id ?? "info");
+    }
+  }, [activeTab, tabs]);
 
   if (!isOpen) return null;
 

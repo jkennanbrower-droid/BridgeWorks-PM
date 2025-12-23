@@ -4,6 +4,7 @@
  * Public-facing Trust Center page; replace placeholder content before launch.
  */
 
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ExternalLink, ShieldCheck } from "lucide-react";
@@ -82,7 +83,7 @@ export function ComplianceBadges({ frameworks, onRequestAccess }: Props) {
             className="fixed inset-0 z-50"
             aria-modal="true"
             role="dialog"
-            onMouseDown={(e) => {
+            onMouseDown={(e: ReactMouseEvent<HTMLDivElement>) => {
               if (e.target === e.currentTarget) setOpenId(null);
             }}
           >
@@ -93,7 +94,7 @@ export function ComplianceBadges({ frameworks, onRequestAccess }: Props) {
               exit={{ x: 24, opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="absolute right-0 top-0 h-full w-[min(520px,100vw)] overflow-y-auto border-l border-black/10 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-slate-950"
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e: ReactMouseEvent<HTMLDivElement>) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
