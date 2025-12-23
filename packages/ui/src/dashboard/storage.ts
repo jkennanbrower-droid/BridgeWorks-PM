@@ -78,3 +78,18 @@ export function saveRoleState(
     JSON.stringify({ ...state, version: STORAGE_VERSION }),
   );
 }
+
+export function clearDashboardStorage(appId: string): void {
+  if (!isBrowser()) return;
+  const prefix = `${STORAGE_PREFIX}.${appId}`;
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // ignore storage errors
+  }
+}

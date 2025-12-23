@@ -26,6 +26,7 @@ function resolveOrderedModules(
 }
 
 type DashboardContentProps = {
+  appId: DashboardAppProps["appId"];
   profile: DashboardAppProps["profile"];
   role: string;
   roleOptions: string[];
@@ -35,6 +36,7 @@ type DashboardContentProps = {
 };
 
 function DashboardContent({
+  appId,
   profile,
   role,
   roleOptions,
@@ -68,6 +70,7 @@ function DashboardContent({
 
   return (
     <DashboardShell
+      appId={appId}
       profile={profile}
       role={role}
       roleOptions={roleOptions}
@@ -125,6 +128,7 @@ export function DashboardApp({
   return (
     <DashboardProvider appId={appId} role={role} modules={modules}>
       <DashboardContent
+        appId={appId}
         profile={profile}
         role={role}
         roleOptions={roleOptions}

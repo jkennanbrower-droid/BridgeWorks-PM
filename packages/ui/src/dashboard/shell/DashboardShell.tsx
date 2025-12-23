@@ -5,11 +5,14 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import type { DashboardProfile, ModuleDef } from "../types";
+import { buildPublicUrl, clearDemoSession } from "../demoSession";
+import { clearDashboardStorage } from "../storage";
 
 import { ModuleTabs } from "./ModuleTabs";
 import { Sidebar } from "./Sidebar";
 
 type DashboardShellProps = {
+  appId: string;
   profile: DashboardProfile;
   role: string;
   roleOptions: string[];
@@ -71,6 +74,7 @@ function BuildingIcon() {
 }
 
 export function DashboardShell({
+  appId,
   profile,
   role,
   roleOptions,
@@ -157,6 +161,23 @@ export function DashboardShell({
                     </select>
                   </label>
                 ) : null}
+                <a
+                  href={buildPublicUrl("/")}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300"
+                >
+                  Home
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearDemoSession(appId);
+                    clearDashboardStorage(appId);
+                    window.location.assign(buildPublicUrl("/login"));
+                  }}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300"
+                >
+                  Sign out
+                </button>
                 <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <span className="text-slate-400">Layout</span>
                   <span className="text-slate-700">{layoutLabel}</span>

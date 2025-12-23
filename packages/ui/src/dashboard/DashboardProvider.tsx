@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useReducer } from
 
 import { normalizeModuleOrder, resolveActiveModuleId } from "./defaults";
 import { dashboardReducer, type DashboardState } from "./reducer";
+import { ensureDemoSession } from "./demoSession";
 import { loadRoleState, saveAppState, saveRoleState } from "./storage";
 import type { ModuleDef, ModuleLayout } from "./types";
 
@@ -57,6 +58,10 @@ export function DashboardProvider({
   );
 
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
+
+  useEffect(() => {
+    ensureDemoSession(appId);
+  }, [appId]);
 
   useEffect(() => {
     dispatch({ type: "hydrate", state: buildState(appId, role, modules) });

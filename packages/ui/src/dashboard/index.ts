@@ -1,4 +1,13 @@
 export { DashboardApp } from "./DashboardApp";
+export {
+  buildPublicUrl,
+  clearDemoSession,
+  ensureDemoSession,
+  getDemoActorId,
+  getDemoSession,
+  getPublicBaseUrl,
+  resetDemoSession,
+} from "./demoSession";
 export type {
   DashboardAppProps,
   DashboardProfile,

@@ -97,9 +97,11 @@ type ConversationMessage = {
 function ThreadFilters({
   value,
   onChange,
+  condensed,
 }: {
   value: ThreadFilter;
   onChange: (value: ThreadFilter) => void;
+  condensed?: boolean;
 }) {
   const items: { value: ThreadFilter; label: string }[] = [
     { value: "all", label: "All" },
@@ -109,11 +111,19 @@ function ThreadFilters({
   ];
 
   return (
-    <nav aria-label="Message filters" className="flex items-center">
-      {items.map((item, index) => {
+    <nav
+      aria-label="Message filters"
+      className="flex items-center gap-x-4 whitespace-nowrap"
+    >
+      {items.map((item) => {
         const active = item.value === value;
+        const hiddenWhenCondensed =
+          condensed && item.value !== "all" ? "xl:hidden" : "";
         return (
-          <div key={item.value} className="flex items-center">
+          <div
+            key={item.value}
+            className={`flex items-center ${hiddenWhenCondensed}`}
+          >
             <button
               type="button"
               aria-current={active ? "page" : undefined}
@@ -126,11 +136,6 @@ function ThreadFilters({
             >
               {item.label}
             </button>
-            {index < items.length - 1 ? (
-              <span aria-hidden="true" className="px-2 text-slate-300">
-                |
-              </span>
-            ) : null}
           </div>
         );
       })}
@@ -149,7 +154,9 @@ type MessageThread = {
   avatarTone: "slate" | "blue" | "emerald";
 };
 
-const THREADS: MessageThread[] = [
+const THREADS: MessageThread[] = [];
+
+const THREADS_MOCK: MessageThread[] = [
   {
     id: "anna",
     name: "Anna Williams",
@@ -274,10 +281,15 @@ function Segmented({
 export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean }) {
   const [activeFilter, setActiveFilter] = useState<ThreadFilter>("all");
   const [activeSort, setActiveSort] = useState<ThreadSort>("mostRecent");
-  const [expandedMessageTimestamps, setExpandedMessageTimestamps] = useState(
-    () => new Set<string>(),
-  );
-  const activeThread = THREADS[0];
+  const activeThread =
+    THREADS[0] ??
+    ({
+      id: "",
+      name: "Select a thread",
+      preview: "",
+      minutesAgo: 0,
+      avatarTone: "slate",
+    } satisfies MessageThread);
   const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -292,6 +304,21 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
   }, []);
 
   const threadDetailsData = useMemo<ThreadDetailsPanelData>(
+    () => ({
+      title: "—",
+      status: "—",
+      priority: "—",
+      createdAtLabel: "—",
+      lastActivityAtLabel: "—",
+      linked: {},
+      participants: [],
+      attachments: [],
+      tags: { items: [] },
+    }),
+    [],
+  );
+
+  const threadDetailsDataMock = useMemo<ThreadDetailsPanelData>(
     () => ({
       title: "AC not cooling - Unit 14 (tenant follow-up)",
       status: "Open",
@@ -511,15 +538,21 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
           }`}
         >
           <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white">
-            <div className="border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur">
-              <div className="flex items-center gap-3">
-                <ThreadFilters value={activeFilter} onChange={setActiveFilter} />
+            <div className="border-b border-slate-200 bg-white/95 h-16 px-4 backdrop-blur">
+              <div className="flex h-full items-center gap-3">
+                <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <ThreadFilters
+                    value={activeFilter}
+                    onChange={setActiveFilter}
+                    condensed={threadDetailsOpen}
+                  />
+                </div>
                 <select
                   value={activeSort}
                   onChange={(event) =>
                     setActiveSort(event.target.value as ThreadSort)
                   }
-                  className="ml-auto rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-slate-300"
+                  className="shrink-0 h-10 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-slate-300"
                   aria-label="Sort threads"
                 >
                   <option value="mostRecent">Most recent</option>
@@ -555,6 +588,16 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
                 ref={threadListRef}
                 className="min-h-0 h-full overflow-y-auto px-2 pb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
+                {visibleThreads.length === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm font-semibold text-slate-900">
+                      No threads
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Threads will appear here once loaded.
+                    </p>
+                  </div>
+                ) : null}
                 {visibleThreads.map((thread) => {
                   const initials = thread.name
                     .split(" ")
@@ -624,24 +667,21 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
           </aside>
 
           <div className="flex min-w-0 flex-col overflow-hidden bg-white">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-3">
-            <div className="flex items-center gap-3">
+          <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
+            <div className="flex min-w-0 items-center gap-3">
               <Avatar initials="AW" tone="emerald" online />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">
                   Anna Williams
                 </p>
                 <p className="truncate text-xs text-slate-500">Tenant · Unit 14</p>
-                <p className="truncate text-xs text-slate-400">
-                  anna.williams@email.com
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setThreadDetailsOpen((value) => !value)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
               >
                 <span className="text-xs font-semibold">ⓘ</span>
                 <span className="hidden sm:inline">Details</span>
@@ -661,19 +701,22 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
               ref={messageListRef}
               className="min-h-0 h-full space-y-4 overflow-y-auto overflow-x-hidden px-6 py-4 pb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex h-full min-h-[220px] items-center justify-center">
+                <div className="max-w-sm text-center">
+                  <p className="text-sm font-semibold text-slate-900">
+                    No messages yet
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Start the conversation by sending a message.
+                  </p>
+                </div>
+              </div>
+              <div className="hidden">
                 <Avatar initials="AW" tone="emerald" online />
                 <div className="flex max-w-[760px] flex-col">
                   <button
                     type="button"
-                    onClick={() =>
-                      setExpandedMessageTimestamps((previous) => {
-                        const next = new Set(previous);
-                        if (next.has("tenant-1")) next.delete("tenant-1");
-                        else next.add("tenant-1");
-                        return next;
-                      })
-                    }
+                    onClick={() => {}}
                     className="text-left"
                   >
                     <div className="break-words rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-800">
@@ -681,13 +724,13 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
                       send someone to have a look at it?
                     </div>
                   </button>
-                  {expandedMessageTimestamps.has("tenant-1") ? (
+                  {false ? (
                     <p className="mt-1 text-xs text-slate-400">2h ago</p>
                   ) : null}
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
+              <div className="hidden">
                 <Avatar initials="AW" tone="emerald" online />
                 <div className="flex max-w-[760px] flex-col">
                   <div className="break-words rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-800">
@@ -697,7 +740,7 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
                 </div>
               </div>
 
-            <div className="flex justify-end">
+            <div className="hidden">
               <div className="flex max-w-[760px] flex-col items-end">
                 <div className="break-words rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
                   <p className="text-xs font-semibold text-slate-500">
@@ -732,9 +775,9 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
             ) : null}
           </div>
 
-          <div className="border-t border-slate-200 bg-white px-6 py-3">
-            <div className="flex items-end gap-3">
-              <div className="flex min-h-[44px] flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="border-t border-slate-200 bg-white h-16 px-6">
+            <div className="flex h-full items-center gap-3">
+              <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-sm">
                 <input
                   type="text"
                   placeholder="Write a reply..."
@@ -745,7 +788,7 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
               <button
                 type="button"
                 aria-label="Send message"
-                className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
                 <PaperPlaneIcon />
                 Send
