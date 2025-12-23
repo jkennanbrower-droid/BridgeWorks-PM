@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ModuleDef, ModuleLayout, StandardLayoutsDef } from "ui";
-import { DashboardApp } from "ui";
+import {
+  DashboardApp,
+  ensureDemoSession,
+  getDemoSession,
+  setActiveDemoUserRole,
+} from "ui";
 
 const appId = "user";
-const roleOptions = ["tenant"] as const;
-const appStorageKey = `bw.dashboard.v1.${appId}`;
+const roleOptions = ["tenant_primary", "tenant_roommate", "tenant_guest"] as const;
 type RoleOption = (typeof roleOptions)[number];
+// TODO: Real permissions will replace demo SUPER logic.
 
 const modules: ModuleDef[] = [
   { id: "overview", label: "Overview" },
@@ -49,56 +54,58 @@ const overviewLayout: ModuleLayout = {
 };
 
 const modulesByRole: Record<(typeof roleOptions)[number], ModuleDef[]> = {
-  tenant: modules,
+  tenant_primary: modules,
+  tenant_roommate: modules,
+  tenant_guest: modules,
 };
 
 const standardLayouts: StandardLayoutsDef = {
-  tenant: { overview: overviewLayout },
+  tenant_primary: { overview: overviewLayout },
+  tenant_roommate: { overview: overviewLayout },
+  tenant_guest: { overview: overviewLayout },
+};
+
+const roleLabels: Record<(typeof roleOptions)[number], string> = {
+  tenant_primary: "Primary Resident",
+  tenant_roommate: "Roommate",
+  tenant_guest: "Guest",
+};
+
+const roleDisplayNames: Record<(typeof roleOptions)[number], string> = {
+  tenant_primary: "Taylor Johnson",
+  tenant_roommate: "Morgan Lee",
+  tenant_guest: "Casey Smith",
 };
 
 function isRoleOption(value: string): value is RoleOption {
   return roleOptions.includes(value as RoleOption);
 }
 
-function getStoredRole(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(appStorageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { activeRole?: string };
-    return parsed.activeRole ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function UserDashboardClient() {
-  const [role, setRole] = useState<RoleOption>(roleOptions[0]);
+  const [role, setRole] = useState<RoleOption>(() => {
+    const session = getDemoSession(appId);
+    if (session?.lastRole && isRoleOption(session.lastRole)) return session.lastRole;
+    const inferred = roleOptions.find((r) => session?.actorId?.endsWith(`_${r}`));
+    return inferred ?? roleOptions[0];
+  });
 
   useEffect(() => {
-    const storedRole = getStoredRole();
-    if (storedRole && isRoleOption(storedRole)) {
-      setRole(storedRole);
-    }
+    ensureDemoSession(appId);
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      appStorageKey,
-      JSON.stringify({ version: 1, activeRole: role }),
-    );
+    setActiveDemoUserRole(appId, role);
   }, [role]);
 
   const profile = useMemo(
     () => ({
-      name: "BridgeWorks Resident",
-      roleLabel: "Resident",
+      name: roleDisplayNames[role] ?? "BridgeWorks Resident",
+      roleLabel: roleLabels[role] ?? "Resident",
       company: "BridgeWorks PM",
       avatarUrl: undefined,
       status: "online" as const,
     }),
-    [],
+    [role],
   );
 
   return (
@@ -111,6 +118,7 @@ export function UserDashboardClient() {
       standardLayouts={standardLayouts}
       onRoleChange={(nextRole) => {
         if (isRoleOption(nextRole)) {
+          setActiveDemoUserRole(appId, nextRole);
           setRole(nextRole);
         }
       }}

@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ModuleDef, ModuleLayout, StandardLayoutsDef } from "ui";
-import { DashboardApp } from "ui";
+import {
+  DashboardApp,
+  ensureDemoSession,
+  getDemoSession,
+  setActiveDemoUserRole,
+} from "ui";
 
 const appId = "staff";
-const roleOptions = ["property_manager", "admin", "maintenance"] as const;
-const appStorageKey = `bw.dashboard.v1.${appId}`;
+const roleOptions = ["staff_admin", "property_manager", "maintenance"] as const;
 type RoleOption = (typeof roleOptions)[number];
+// TODO: Real permissions will replace demo SUPER logic.
 
 const modules: ModuleDef[] = [
   { id: "overview", label: "Overview" },
@@ -52,60 +57,52 @@ const overviewLayout: ModuleLayout = {
 };
 
 const modulesByRole: Record<(typeof roleOptions)[number], ModuleDef[]> = {
+  staff_admin: modules,
   property_manager: modules,
-  admin: modules,
   maintenance: modules,
 };
 
 const standardLayouts: StandardLayoutsDef = {
+  staff_admin: { overview: overviewLayout },
   property_manager: { overview: overviewLayout },
-  admin: { overview: overviewLayout },
   maintenance: { overview: overviewLayout },
 };
 
 const roleLabels: Record<(typeof roleOptions)[number], string> = {
+  staff_admin: "Staff Admin",
   property_manager: "Senior Property Manager",
-  admin: "Portfolio Admin",
   maintenance: "Maintenance Lead",
+};
+
+const roleDisplayNames: Record<(typeof roleOptions)[number], string> = {
+  staff_admin: "Avery Chen",
+  property_manager: "Jordan Patel",
+  maintenance: "Sam Rivera",
 };
 
 function isRoleOption(value: string): value is RoleOption {
   return roleOptions.includes(value as RoleOption);
 }
 
-function getStoredRole(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(appStorageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { activeRole?: string };
-    return parsed.activeRole ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function StaffDashboardClient() {
-  const [role, setRole] = useState<RoleOption>(roleOptions[0]);
+  const [role, setRole] = useState<RoleOption>(() => {
+    const session = getDemoSession(appId);
+    if (session?.lastRole && isRoleOption(session.lastRole)) return session.lastRole;
+    const inferred = roleOptions.find((r) => session?.actorId?.endsWith(`_${r}`));
+    return inferred ?? roleOptions[0];
+  });
 
   useEffect(() => {
-    const storedRole = getStoredRole();
-    if (storedRole && isRoleOption(storedRole)) {
-      setRole(storedRole);
-    }
+    ensureDemoSession(appId);
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      appStorageKey,
-      JSON.stringify({ version: 1, activeRole: role }),
-    );
+    setActiveDemoUserRole(appId, role);
   }, [role]);
 
   const profile = useMemo(
     () => ({
-      name: "BridgeWorks User",
+      name: roleDisplayNames[role] ?? "BridgeWorks Staff",
       roleLabel: roleLabels[role] ?? "Property Manager",
       company: "BridgeWorks PM",
       avatarUrl: undefined,
@@ -124,6 +121,7 @@ export function StaffDashboardClient() {
       standardLayouts={standardLayouts}
       onRoleChange={(nextRole) => {
         if (isRoleOption(nextRole)) {
+          setActiveDemoUserRole(appId, nextRole);
           setRole(nextRole);
         }
       }}

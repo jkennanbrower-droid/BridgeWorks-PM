@@ -73,7 +73,7 @@ export function ApplyForm() {
       }
 
       setErrorMessage("Unable to submit the application.");
-    } catch (error) {
+    } catch {
       setErrorMessage("Unable to submit the application.");
     } finally {
       setIsSubmitting(false);

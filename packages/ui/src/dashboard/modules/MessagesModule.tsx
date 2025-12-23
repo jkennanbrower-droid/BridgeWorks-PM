@@ -6,6 +6,7 @@ import {
 } from "./messages/ThreadDetailsPanel";
 
 import { useMessagingClient } from "../../messaging/useMessagingClient";
+import { buildViewerContext } from "../../messaging/viewerContext";
 import type {
   AuditEvent,
   Attachment,
@@ -594,24 +595,24 @@ function MessageBubble({
 export function MessagesModule({
   appId = "app",
   isStaffView = false,
+  role = "demo",
 }: {
   appId?: string;
   isStaffView?: boolean;
+  role?: string;
 }) {
-  const messagesUiStorageKey = `bw.messages.ui.v1.${appId}`;
-  const hiddenMessagesStorageKey = `bw.messages.hidden.v1.${appId}`;
-
+  const resolvedAppId = appId || (isStaffView ? "staff" : "user");
   const viewer = useMemo<ViewerContext>(
-    () => ({
-      appId: appId || (isStaffView ? "staff" : "user"),
-      orgId: "demo-org-1",
-      actorId: isStaffView ? "demo-staff-1" : "demo-user-1",
-      roleHint: isStaffView ? "staff" : "tenant",
-      isStaffView,
-      // TODO (Prompt 2): replace from demo session manager.
-    }),
-    [appId, isStaffView],
+    () => buildViewerContext({ appId: resolvedAppId, role, isStaffView }),
+    [isStaffView, resolvedAppId, role],
   );
+
+  const messagingSessionPrefix = `bw.messaging.session.v1.${viewer.appId}.${viewer.orgId}.${viewer.actorId}.${viewer.sessionId}`;
+  const messagesUiStorageKey = `${messagingSessionPrefix}.ui`;
+  const legacyMessagesUiStorageKey = `bw.messages.ui.v1.${viewer.appId}.${viewer.orgId}`;
+  const legacyMessagesUiStorageKeyV0 = `bw.messages.ui.v1.${viewer.appId}`;
+  const hiddenMessagesStorageKey = `bw.messages.hidden.v1.${viewer.appId}.${viewer.orgId}.${viewer.actorId}`;
+  const legacyHiddenMessagesStorageKey = `bw.messages.hidden.v1.${viewer.appId}.${viewer.actorId}`;
 
   const client = useMessagingClient(viewer);
 
@@ -675,6 +676,9 @@ export function MessagesModule({
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [expandedTimestampMessageIds, setExpandedTimestampMessageIds] = useState<string[]>([]);
   const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+
+  const [uiHydratedKey, setUiHydratedKey] = useState<string | null>(null);
+  const [hiddenHydratedKey, setHiddenHydratedKey] = useState<string | null>(null);
 
   const getComposerFileId = useCallback((file: File) => {
     const existing = composerFileIdMapRef.current.get(file);
@@ -860,26 +864,70 @@ export function MessagesModule({
   }, []);
 
   useEffect(() => {
+    setUiHydratedKey(null);
     if (typeof window === "undefined") return;
+
+    const fallbackQuery: ThreadQuery = { tab: "all", sortKey: "updated_desc" };
+
     try {
       const raw = window.localStorage.getItem(messagesUiStorageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<{
-        query: ThreadQuery;
-        threadDetailsOpen: boolean;
-        selectMode: boolean;
-      }>;
-      if (parsed.query) setQuery(parsed.query);
-      if (typeof parsed.threadDetailsOpen === "boolean") setThreadDetailsOpen(parsed.threadDetailsOpen);
-      if (typeof parsed.selectMode === "boolean") setSelectMode(parsed.selectMode);
+      const legacyRaw = raw
+        ? null
+        : window.localStorage.getItem(legacyMessagesUiStorageKey);
+      const legacyRawV0 =
+        raw || legacyRaw
+          ? null
+          : window.localStorage.getItem(legacyMessagesUiStorageKeyV0);
+      const effectiveRaw = raw ?? legacyRaw ?? legacyRawV0;
+
+      if (effectiveRaw) {
+        const parsed = JSON.parse(effectiveRaw) as Partial<{
+          query: ThreadQuery;
+          threadDetailsOpen: boolean;
+          selectMode: boolean;
+        }>;
+        const nextQuery = parsed.query ?? fallbackQuery;
+        const nextThreadDetailsOpen =
+          typeof parsed.threadDetailsOpen === "boolean"
+            ? parsed.threadDetailsOpen
+            : false;
+        const nextSelectMode =
+          typeof parsed.selectMode === "boolean" ? parsed.selectMode : false;
+
+        setQuery(nextQuery);
+        setThreadDetailsOpen(nextThreadDetailsOpen);
+        setSelectMode(nextSelectMode);
+
+        if (legacyRaw || legacyRawV0) {
+          window.localStorage.setItem(
+            messagesUiStorageKey,
+            JSON.stringify({
+              version: 1,
+              query: nextQuery,
+              threadDetailsOpen: nextThreadDetailsOpen,
+              selectMode: nextSelectMode,
+            }),
+          );
+          if (legacyRaw) window.localStorage.removeItem(legacyMessagesUiStorageKey);
+          if (legacyRawV0) window.localStorage.removeItem(legacyMessagesUiStorageKeyV0);
+        }
+      } else {
+        setQuery(fallbackQuery);
+        setThreadDetailsOpen(false);
+        setSelectMode(false);
+      }
     } catch {
-      // ignore
+      setQuery(fallbackQuery);
+      setThreadDetailsOpen(false);
+      setSelectMode(false);
+    } finally {
+      setUiHydratedKey(messagesUiStorageKey);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [legacyMessagesUiStorageKey, legacyMessagesUiStorageKeyV0, messagesUiStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (uiHydratedKey !== messagesUiStorageKey) return;
     try {
       window.localStorage.setItem(
         messagesUiStorageKey,
@@ -1051,29 +1099,48 @@ export function MessagesModule({
   }, []);
 
   useEffect(() => {
+    setHiddenHydratedKey(null);
     if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(`${hiddenMessagesStorageKey}.${viewer.actorId}`);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) setHiddenMessageIds(parsed.filter((x) => typeof x === "string"));
+      const raw = window.localStorage.getItem(hiddenMessagesStorageKey);
+      const legacyRaw = raw
+        ? null
+        : window.localStorage.getItem(legacyHiddenMessagesStorageKey);
+      const effectiveRaw = raw ?? legacyRaw;
+      if (effectiveRaw) {
+        const parsed = JSON.parse(effectiveRaw) as unknown;
+        if (Array.isArray(parsed)) {
+          const nextHidden = parsed.filter((x) => typeof x === "string");
+          setHiddenMessageIds(nextHidden);
+          if (legacyRaw) {
+            window.localStorage.setItem(
+              hiddenMessagesStorageKey,
+              JSON.stringify(nextHidden),
+            );
+            window.localStorage.removeItem(legacyHiddenMessagesStorageKey);
+          }
+        } else {
+          setHiddenMessageIds([]);
+        }
+      } else {
+        setHiddenMessageIds([]);
+      }
     } catch {
-      // ignore
+      setHiddenMessageIds([]);
+    } finally {
+      setHiddenHydratedKey(hiddenMessagesStorageKey);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hiddenMessagesStorageKey, legacyHiddenMessagesStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (hiddenHydratedKey !== hiddenMessagesStorageKey) return;
     try {
-      window.localStorage.setItem(
-        `${hiddenMessagesStorageKey}.${viewer.actorId}`,
-        JSON.stringify(hiddenMessageIds),
-      );
+      window.localStorage.setItem(hiddenMessagesStorageKey, JSON.stringify(hiddenMessageIds));
     } catch {
       // ignore
     }
-  }, [hiddenMessageIds, hiddenMessagesStorageKey, viewer.actorId]);
+  }, [hiddenMessageIds, hiddenMessagesStorageKey]);
 
   useEffect(() => {
     const el = threadListRef.current;

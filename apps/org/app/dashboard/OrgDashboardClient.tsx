@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ModuleDef, ModuleLayout, StandardLayoutsDef } from "ui";
-import { DashboardApp } from "ui";
+import {
+  DashboardApp,
+  ensureDemoSession,
+  getDemoSession,
+  setActiveDemoUserRole,
+} from "ui";
 
 const appId = "org";
-const roleOptions = ["org_admin", "org_manager"] as const;
-const appStorageKey = `bw.dashboard.v1.${appId}`;
+const roleOptions = ["org_owner", "org_admin", "org_accountant"] as const;
 type RoleOption = (typeof roleOptions)[number];
+// TODO: Real permissions will replace demo SUPER logic.
 
 const modules: ModuleDef[] = [
   { id: "overview", label: "Overview" },
@@ -50,58 +55,53 @@ const overviewLayout: ModuleLayout = {
 };
 
 const modulesByRole: Record<(typeof roleOptions)[number], ModuleDef[]> = {
+  org_owner: modules,
   org_admin: modules,
-  org_manager: modules,
+  org_accountant: modules,
 };
 
 const standardLayouts: StandardLayoutsDef = {
+  org_owner: { overview: overviewLayout },
   org_admin: { overview: overviewLayout },
-  org_manager: { overview: overviewLayout },
+  org_accountant: { overview: overviewLayout },
 };
 
 const roleLabels: Record<(typeof roleOptions)[number], string> = {
+  org_owner: "Organization Owner",
   org_admin: "Organization Admin",
-  org_manager: "Organization Manager",
+  org_accountant: "Organization Accountant",
+};
+
+const roleDisplayNames: Record<(typeof roleOptions)[number], string> = {
+  org_owner: "Riley Thompson",
+  org_admin: "Alex Martinez",
+  org_accountant: "Jamie Nguyen",
 };
 
 function isRoleOption(value: string): value is RoleOption {
   return roleOptions.includes(value as RoleOption);
 }
 
-function getStoredRole(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(appStorageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { activeRole?: string };
-    return parsed.activeRole ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function OrgDashboardClient() {
-  const [role, setRole] = useState<RoleOption>(roleOptions[0]);
+  const [role, setRole] = useState<RoleOption>(() => {
+    const session = getDemoSession(appId);
+    if (session?.lastRole && isRoleOption(session.lastRole)) return session.lastRole;
+    const inferred = roleOptions.find((r) => session?.actorId?.endsWith(`_${r}`));
+    return inferred ?? roleOptions[0];
+  });
 
   useEffect(() => {
-    const storedRole = getStoredRole();
-    if (storedRole && isRoleOption(storedRole)) {
-      setRole(storedRole);
-    }
+    ensureDemoSession(appId);
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      appStorageKey,
-      JSON.stringify({ version: 1, activeRole: role }),
-    );
+    setActiveDemoUserRole(appId, role);
   }, [role]);
 
   const profile = useMemo(
     () => ({
-      name: "BridgeWorks Org User",
-      roleLabel: roleLabels[role] ?? "Organization Admin",
+      name: roleDisplayNames[role] ?? "BridgeWorks Org User",
+      roleLabel: roleLabels[role] ?? "Organization",
       company: "BridgeWorks PM",
       avatarUrl: undefined,
       status: "online" as const,
@@ -119,6 +119,7 @@ export function OrgDashboardClient() {
       standardLayouts={standardLayouts}
       onRoleChange={(nextRole) => {
         if (isRoleOption(nextRole)) {
+          setActiveDemoUserRole(appId, nextRole);
           setRole(nextRole);
         }
       }}

@@ -2,11 +2,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { DashboardProfile, ModuleDef } from "../types";
-import { clearDemoSession, getDemoSession } from "../demoSession";
-import { clearDashboardStorage } from "../storage";
+import {
+  buildPublicUrl,
+  ensureDemoSession,
+  getDemoSession,
+  resetDemoSession,
+} from "../demoSession";
+import { clearDashboardStorage, clearMessagingSessionStorage } from "../storage";
 
 import { ModuleTabs } from "./ModuleTabs";
 import { Sidebar } from "./Sidebar";
@@ -106,7 +111,6 @@ export function DashboardShell({
     }
     return true;
   });
-  const [demoActorId, setDemoActorId] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -114,22 +118,33 @@ export function DashboardShell({
         sidebarStorageKey,
         sidebarCollapsed ? "true" : "false",
       );
-      window.localStorage.setItem(
-        legacySidebarStorageKey,
-        sidebarCollapsed ? "true" : "false",
-      );
     } catch {
       // ignore storage errors
     }
-  }, [legacySidebarStorageKey, sidebarCollapsed, sidebarStorageKey]);
+  }, [sidebarCollapsed, sidebarStorageKey]);
+
+  const demoActorId = useMemo(() => {
+    const session = getDemoSession(appId);
+    return session?.actorId ?? "";
+  }, [appId, role]);
 
   useEffect(() => {
-    const session = getDemoSession(appId);
-    if (session?.actorId) setDemoActorId(session.actorId);
-  }, [appId]);
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(sidebarStorageKey);
+      if (stored === "true" || stored === "false") return;
+      const legacy = window.localStorage.getItem(legacySidebarStorageKey);
+      if (legacy === "true" || legacy === "false") {
+        window.localStorage.setItem(sidebarStorageKey, legacy);
+        window.localStorage.removeItem(legacySidebarStorageKey);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [legacySidebarStorageKey, sidebarStorageKey]);
 
-  const publicHomeUrl = "http://localhost:3100/";
-  const publicLoginUrl = "http://localhost:3100/login";
+  const publicHomeUrl = buildPublicUrl("/");
+  const publicLoginUrl = buildPublicUrl("/login");
 
   return (
     <main className="h-screen overflow-hidden bg-slate-50 text-slate-900">
@@ -176,7 +191,7 @@ export function DashboardShell({
                   onClick={() => {
                     try {
                       window.localStorage.setItem(sidebarStorageKey, "true");
-                      window.localStorage.setItem(legacySidebarStorageKey, "true");
+                      window.localStorage.removeItem(legacySidebarStorageKey);
                     } catch {
                       // ignore storage errors
                     }
@@ -192,11 +207,18 @@ export function DashboardShell({
                   onClick={() => {
                     try {
                       window.localStorage.setItem(sidebarStorageKey, "true");
-                      window.localStorage.setItem(legacySidebarStorageKey, "true");
+                      window.localStorage.removeItem(legacySidebarStorageKey);
                     } catch {
                       // ignore storage errors
                     }
-                    clearDemoSession(appId);
+                    const session = ensureDemoSession(appId);
+                    clearMessagingSessionStorage({
+                      appId,
+                      orgId: session.orgId,
+                      actorId: session.actorId,
+                      sessionId: session.sessionId,
+                    });
+                    resetDemoSession(appId);
                     clearDashboardStorage(appId);
                     window.location.assign(publicLoginUrl);
                   }}

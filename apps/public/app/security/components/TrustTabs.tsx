@@ -4,7 +4,7 @@
  * Public-facing Trust Center page; replace placeholder content before launch.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
@@ -72,35 +72,37 @@ export function TrustTabs({ tabs, activeTab, onChange }: Props) {
     tabRefs.current[id] = el;
   };
 
-  const updateIndicator = useMemo(() => {
-    return () => {
-      const group = groupRef.current;
-      const activeEl = tabRefs.current[activeTab];
-      if (!group || !activeEl) return;
+  const updateIndicator = () => {
+    const group = groupRef.current;
+    const activeEl = tabRefs.current[activeTab];
+    if (!group || !activeEl) return;
 
-      const groupRect = group.getBoundingClientRect();
-      const btnRect = activeEl.getBoundingClientRect();
+    const groupRect = group.getBoundingClientRect();
+    const btnRect = activeEl.getBoundingClientRect();
 
-      const next = {
-        x: Math.max(0, btnRect.left - groupRect.left),
-        width: Math.max(0, btnRect.width),
-      };
-
-      setIndicator((prev) => {
-        if (prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.width - next.width) < 0.5) {
-          return prev;
-        }
-        return next;
-      });
+    const next = {
+      x: Math.max(0, btnRect.left - groupRect.left),
+      width: Math.max(0, btnRect.width),
     };
-  }, [activeTab]);
+
+    setIndicator((prev) => {
+      if (
+        prev &&
+        Math.abs(prev.x - next.x) < 0.5 &&
+        Math.abs(prev.width - next.width) < 0.5
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  };
 
   useLayoutEffect(() => {
     updateIndicator();
     // Run again on next frame to catch font/layout settling.
     const raf = window.requestAnimationFrame(() => updateIndicator());
     return () => window.cancelAnimationFrame(raf);
-  }, [activeTab, tabs, updateIndicator]);
+  }, [activeTab, tabs]);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -119,7 +121,7 @@ export function TrustTabs({ tabs, activeTab, onChange }: Props) {
       window.removeEventListener("resize", onResize);
       ro?.disconnect();
     };
-  }, [updateIndicator]);
+  }, [activeTab]);
 
   return (
     <div

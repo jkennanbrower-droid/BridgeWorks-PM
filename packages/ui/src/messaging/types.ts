@@ -14,6 +14,7 @@ export type ViewerContext = {
   actorId: string;
   roleHint?: string;
   isStaffView: boolean;
+  sessionId: string;
 };
 
 export type Attachment = {

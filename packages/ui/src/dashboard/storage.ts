@@ -93,3 +93,41 @@ export function clearDashboardStorage(appId: string): void {
     // ignore storage errors
   }
 }
+
+export function clearMessagingUiStorage(appId: string): void {
+  if (!isBrowser()) return;
+  const prefixes = [`bw.messages.ui.v1.${appId}`, `bw.messages.hidden.v1.${appId}`];
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key) continue;
+      if (prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}.`))) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function clearMessagingSessionStorage(input: {
+  appId: string;
+  orgId: string;
+  actorId: string;
+  sessionId: string;
+}): void {
+  if (!isBrowser()) return;
+  const prefix = `bw.messaging.session.v1.${input.appId}.${input.orgId}.${input.actorId}.${input.sessionId}`;
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // ignore storage errors
+  }
+}

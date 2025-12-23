@@ -92,6 +92,7 @@ export function CommandCenterDemo() {
   );
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const auditSeqRef = useRef(0);
   const [auditLogs, setAuditLogs] = useState<Record<string, AuditEntry[]>>(() => {
     const initial: Record<string, AuditEntry[]> = {};
     tabs.forEach((tab) => {
@@ -108,7 +109,7 @@ export function CommandCenterDemo() {
 
   const handleAction = (tabId: string, message: string) => {
     const newEntry: AuditEntry = {
-      id: `${tabId}-${Date.now()}`,
+      id: `${tabId}-${(auditSeqRef.current += 1)}`,
       message,
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",

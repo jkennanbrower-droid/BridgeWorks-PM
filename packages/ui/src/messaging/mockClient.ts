@@ -12,6 +12,7 @@ import type {
   ThreadStatus,
   ViewerContext,
 } from "./types";
+import { getDemoUsers } from "../dashboard/demoSession";
 
 type MockStore = {
   version: 1;
@@ -24,6 +25,21 @@ type MockStore = {
 };
 
 export const MOCK_UNASSIGNED_TOKEN = "__unassigned__";
+
+export function clearNamespace(appId: string, orgId: string) {
+  if (typeof window === "undefined") return;
+  const prefix = `bw.messaging.mock.v1.${appId}.${orgId}.`;
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // ignore
+  }
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -167,13 +183,43 @@ function applyThreadQuery(threads: Thread[], query: ThreadQuery) {
 }
 
 function seedStore(viewer: ViewerContext): MockStore {
+  const selfRole: Participant["role"] =
+    viewer.appId === "org"
+      ? "org"
+      : viewer.appId === "console"
+        ? "internal"
+        : viewer.isStaffView
+          ? "staff"
+          : "tenant";
+  const selfLabel =
+    viewer.appId === "org"
+      ? "You (Org)"
+      : viewer.appId === "console"
+        ? "You (Console)"
+        : viewer.isStaffView
+          ? "You (Staff)"
+          : "You (Tenant)";
+
+  const demoUsers = getDemoUsers(viewer.appId, viewer.orgId);
+  const demoParticipantRole: Participant["role"] =
+    viewer.appId === "org" ? "org" : viewer.isStaffView ? "staff" : "tenant";
+
   const participants: Participant[] = [
     {
       id: viewer.actorId,
-      name: viewer.isStaffView ? "You (Staff)" : "You (Tenant)",
-      role: viewer.isStaffView ? "staff" : "tenant",
+      name: selfLabel,
+      role: selfRole,
       presence: "online",
     },
+    ...demoUsers
+      .filter((u) => u.id !== viewer.actorId)
+      .map((u) => ({
+        id: u.id,
+        name: u.displayName,
+        role: demoParticipantRole,
+        avatarUrl: u.avatarUrl,
+        presence: "offline" as const,
+      })),
     { id: "demo-tenant-1", name: "Anna Williams", role: "tenant", presence: "online" },
     { id: "demo-tenant-2", name: "Robert Mitchell", role: "tenant", presence: "offline" },
     { id: "demo-tenant-3", name: "Becky Sanders", role: "tenant", presence: "offline" },
@@ -643,20 +689,22 @@ export class MockMessagingClient implements MessagingClient {
   }
 
   resetDemoSessionData(scope: "current" | "all" = "current") {
-    if (scope === "all") {
-      if (typeof window === "undefined") return;
-      try {
-        Object.keys(window.localStorage)
-          .filter((k) => k.startsWith("bw.messaging.mock.v1."))
-          .forEach((k) => window.localStorage.removeItem(k));
-      } catch {
-        // ignore
+    if (typeof window === "undefined") return;
+
+    const basePrefix = `bw.messaging.session.v1.${this.viewer.appId}.${this.viewer.orgId}.${this.viewer.actorId}`;
+    const prefix =
+      scope === "all" ? `${basePrefix}.` : `${basePrefix}.${this.viewer.sessionId}`;
+
+    try {
+      const keys: string[] = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key && key.startsWith(prefix)) keys.push(key);
       }
-      this.store = seedStore(this.viewer);
-      this.persist();
-      return;
+      keys.forEach((key) => window.localStorage.removeItem(key));
+    } catch {
+      // ignore storage errors
     }
-    this.clearNamespace();
   }
 
   clearNamespace() {
@@ -1085,12 +1133,34 @@ export class MockMessagingClient implements MessagingClient {
     }
     try {
       const raw = window.localStorage.getItem(this.namespaceKey);
-      if (!raw) return seedStore(this.viewer);
+      if (!raw) {
+        const seeded = seedStore(this.viewer);
+        try {
+          window.localStorage.setItem(this.namespaceKey, JSON.stringify(seeded));
+        } catch {
+          // ignore
+        }
+        return seeded;
+      }
       const parsed = JSON.parse(raw) as MockStore;
-      if (!parsed || parsed.version !== 1) return seedStore(this.viewer);
+      if (!parsed || parsed.version !== 1) {
+        const seeded = seedStore(this.viewer);
+        try {
+          window.localStorage.setItem(this.namespaceKey, JSON.stringify(seeded));
+        } catch {
+          // ignore
+        }
+        return seeded;
+      }
       return parsed;
     } catch {
-      return seedStore(this.viewer);
+      const seeded = seedStore(this.viewer);
+      try {
+        window.localStorage.setItem(this.namespaceKey, JSON.stringify(seeded));
+      } catch {
+        // ignore
+      }
+      return seeded;
     }
   }
 
