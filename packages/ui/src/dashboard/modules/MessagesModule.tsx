@@ -205,6 +205,8 @@ function MessageBubble({
   messageId,
   mine,
   senderLabel,
+  senderAvatarUrl,
+  showAvatar,
   createdAt,
   body,
   matches,
@@ -218,6 +220,8 @@ function MessageBubble({
   messageId: string;
   mine: boolean;
   senderLabel: string;
+  senderAvatarUrl?: string;
+  showAvatar?: boolean;
   createdAt: string;
   body: string;
   matches: Array<{ start: number; end: number }>;
@@ -247,6 +251,11 @@ function MessageBubble({
 
   return (
     <div className={`flex gap-3 ${mine ? "justify-end" : "justify-start"}`}>
+      {!mine && showAvatar ? (
+        <div className="pt-1">
+          <AvatarCircle name={senderLabel} avatarUrl={senderAvatarUrl} size={28} />
+        </div>
+      ) : null}
       <div className={`flex max-w-[760px] flex-col ${mine ? "items-end" : "items-start"}`}>
         <div
           className={`break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
@@ -349,13 +358,18 @@ export function MessagesModule({
     [activeThreadId, allThreads],
   );
 
+  const activeThreadParticipantById = useMemo(() => {
+    const byId = new Map<string, { avatarUrl?: string; name: string }>();
+    (activeThread?.participants ?? []).forEach((p) => byId.set(p.id, { avatarUrl: p.avatarUrl, name: p.name }));
+    return byId;
+  }, [activeThread]);
+
   const [messages, setMessages] = useState<Message[]>([]);
 
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const [threadListHasMore, setThreadListHasMore] = useState(false);
   const [messageListHasMore, setMessageListHasMore] = useState(false);
-  const [composerSubtitleVisible, setComposerSubtitleVisible] = useState(false);
 
   const [composerBody, setComposerBody] = useState("");
   const [composerChannel, setComposerChannel] = useState<MessagingChannel>("portal");
@@ -471,9 +485,7 @@ export function MessagesModule({
     const result = await client.listThreads(query);
     setThreads(result.threads);
     setSelectedThreadIds((prev) => prev.filter((id) => result.threads.some((t) => t.id === id)));
-    setActiveThreadId((prev) =>
-      prev && result.threads.some((t) => t.id === prev) ? prev : result.threads[0]?.id ?? null,
-    );
+    setActiveThreadId((prev) => (prev && result.threads.some((t) => t.id === prev) ? prev : null));
   }, [client, query]);
 
   useEffect(() => {
@@ -687,9 +699,7 @@ export function MessagesModule({
     const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
     // Use hysteresis to avoid flicker around the threshold.
     const showMoreMessages = remaining > 160;
-    const showSubtitle = remaining <= 140;
     setMessageListHasMore(showMoreMessages);
-    setComposerSubtitleVisible(showSubtitle);
   }, []);
 
   useEffect(() => {
@@ -975,7 +985,7 @@ export function MessagesModule({
                 ref={threadListRef}
                 className="min-h-0 h-full overflow-y-auto bg-white [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-200/70">
                   {threads.map((thread) => (
                     <button
                       key={thread.id}
@@ -985,7 +995,7 @@ export function MessagesModule({
                         setInThreadSearch("");
                       }}
                       className={`flex w-full items-start gap-3 px-4 py-3 text-left transition ${
-                        thread.id === activeThreadId ? "bg-slate-50" : "hover:bg-slate-50"
+                        thread.id === activeThreadId ? "bg-slate-100" : "hover:bg-slate-50"
                       }`}
                     >
                       {selectMode ? (
@@ -1053,49 +1063,50 @@ export function MessagesModule({
           </aside>
 
           <div className="flex min-w-0 flex-col overflow-hidden bg-white">
-            <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  {activeThread?.kind === "direct" && directRecipient ? (
-                    <div className="flex min-w-0 items-center gap-3">
-                      <AvatarCircle
-                        name={directRecipient.name}
-                        avatarUrl={directRecipient.avatarUrl}
-                        size={threadDetailsOpen ? 40 : 36}
-                      />
-                      {threadDetailsOpen ? null : (
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {directRecipient.name}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-slate-500">
-                            {[activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" | ") ||
-                              "--"}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {activeThread?.title ?? "Select a thread"}
-                    </p>
-                  )}
-                </div>
-                {threadDetailsOpen && activeThread?.kind === "direct"
-                  ? null
-                  : activeThread?.kind === "direct"
-                    ? null
-                    : (
-                  <p className="mt-1 truncate text-xs text-slate-500">
-                    {activeThread
-                      ? [activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" | ")
-                      : "--"}
-                  </p>
+            <div className="h-16 border-b border-slate-200 bg-white/95 px-6 backdrop-blur">
+              <div className="flex h-full items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {activeThread?.kind === "direct" && directRecipient ? (
+                      <div className="flex min-w-0 items-center gap-3">
+                        <AvatarCircle
+                          name={directRecipient.name}
+                          avatarUrl={directRecipient.avatarUrl}
+                          size={threadDetailsOpen ? 40 : 36}
+                        />
+                        {threadDetailsOpen ? null : (
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {directRecipient.name}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-500">
+                              {[activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" | ") ||
+                                "--"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {activeThread?.title ?? "Select a thread"}
+                      </p>
                     )}
-              </div>
+                  </div>
+                  {threadDetailsOpen && activeThread?.kind === "direct"
+                    ? null
+                    : activeThread?.kind === "direct"
+                      ? null
+                      : (
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {activeThread
+                        ? [activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" | ")
+                        : "--"}
+                    </p>
+                      )}
+                </div>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="flex items-center gap-2">
+                <div className="hidden sm:flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-sm">
                   <SearchIcon />
                   <input
                     type="search"
@@ -1150,70 +1161,89 @@ export function MessagesModule({
                 </button>
               </div>
             </div>
+            </div>
             <div className="relative min-h-0 flex-1">
               <div
                 ref={messageListRef}
-                className="min-h-0 h-full space-y-4 overflow-y-auto overflow-x-hidden px-6 py-4 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="min-h-0 h-full overflow-y-auto overflow-x-hidden px-6 pb-8 pt-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
-                {!activeThread ? (
-                  <div className="flex h-full min-h-[220px] items-center justify-center">
-                    <div className="max-w-sm text-center">
-                      <p className="text-sm font-semibold text-slate-900">No thread selected</p>
-                      <p className="mt-1 text-sm text-slate-500">Select a thread to view messages.</p>
-                    </div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex h-full min-h-[220px] items-center justify-center">
-                    <div className="max-w-sm text-center">
-                      <p className="text-sm font-semibold text-slate-900">No messages yet</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Start the conversation by sending a message.
+                {activeThread?.kind === "direct" ? (
+                  <div className="sticky top-0 z-10 -mx-6 border-b border-t border-slate-200/70 bg-white/40 px-6 py-2 backdrop-blur">
+                    <div className="flex items-center gap-4">
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+                      <p className="max-w-[min(520px,70%)] truncate text-center text-sm font-semibold text-slate-600/80">
+                        {stripParentheticals(activeThread.title)}
                       </p>
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
                     </div>
                   </div>
-                ) : (
-                  (() => {
-                    let matchIndexOffset = 0;
-                    return messages.map((m, i) => {
+                ) : null}
+
+                <div className="space-y-4 pt-4">
+                  {!activeThread ? (
+                    <div className="flex h-full min-h-[220px] items-center justify-center">
+                      <div className="max-w-sm text-center">
+                        <p className="text-sm font-semibold text-slate-900">No thread selected</p>
+                        <p className="mt-1 text-sm text-slate-500">Select a thread to view messages.</p>
+                      </div>
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex h-full min-h-[220px] items-center justify-center">
+                      <div className="max-w-sm text-center">
+                        <p className="text-sm font-semibold text-slate-900">No messages yet</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Start the conversation by sending a message.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    (() => {
+                      let matchIndexOffset = 0;
+                      return messages.map((m, i) => {
                       const mine = m.senderId === viewer.actorId;
+                      const sender = activeThreadParticipantById.get(m.senderId);
+                      const showAvatar = !mine && activeThread?.kind === "group";
                       const matches = matchData.byMessageId.get(m.id) ?? [];
                       const offset = matchIndexOffset;
                       matchIndexOffset += matches.length;
                       const prev = messages[i - 1];
                       const showDivider = shouldShowTimeDivider(prev?.createdAt, m.createdAt);
-                      return (
-                        <div key={m.id}>
-                          {showDivider ? (
-                            <div className="flex items-center gap-3 py-1">
-                              <div className="h-px flex-1 bg-slate-200" />
-                              <span className="text-[11px] font-semibold text-slate-500">
-                                {formatTimestampDivider(m.createdAt)}
-                              </span>
-                              <div className="h-px flex-1 bg-slate-200" />
-                            </div>
-                          ) : null}
-                          <MessageBubble
-                            messageId={m.id}
-                            mine={mine}
-                            senderLabel={m.senderLabel}
-                            createdAt={m.createdAt}
-                            body={m.body}
-                            matches={matches}
-                            matchIndexOffset={offset}
-                            activeMatchIndex={activeMatchIndex}
-                            attachmentsCount={m.attachments?.length ?? 0}
-                            scheduledFor={m.scheduledFor}
-                            showTimestamp={
-                              expandedTimestampSet.has(m.id) ||
-                              lastMessageIdBySender.get(m.senderId) === m.id
-                            }
-                            onToggleTimestamp={toggleTimestamp}
-                          />
-                        </div>
-                      );
-                    });
-                  })()
-                )}
+                        return (
+                          <div key={m.id}>
+                            {showDivider ? (
+                              <div className="flex items-center gap-3 py-1">
+                                <div className="h-px flex-1 bg-slate-200" />
+                                <span className="text-[11px] font-semibold text-slate-500">
+                                  {formatTimestampDivider(m.createdAt)}
+                                </span>
+                                <div className="h-px flex-1 bg-slate-200" />
+                              </div>
+                            ) : null}
+                            <MessageBubble
+                              messageId={m.id}
+                              mine={mine}
+                              senderLabel={m.senderLabel}
+                              senderAvatarUrl={sender?.avatarUrl}
+                              showAvatar={showAvatar}
+                              createdAt={m.createdAt}
+                              body={m.body}
+                              matches={matches}
+                              matchIndexOffset={offset}
+                              activeMatchIndex={activeMatchIndex}
+                              attachmentsCount={m.attachments?.length ?? 0}
+                              scheduledFor={m.scheduledFor}
+                              showTimestamp={
+                                expandedTimestampSet.has(m.id) ||
+                                lastMessageIdBySender.get(m.senderId) === m.id
+                              }
+                              onToggleTimestamp={toggleTimestamp}
+                            />
+                          </div>
+                        );
+                      });
+                    })()
+                  )}
+                </div>
               </div>
               {messageListHasMore ? (
                 <button
@@ -1231,14 +1261,6 @@ export function MessagesModule({
                 </button>
               ) : null}
             </div>
-
-            {activeThread && composerSubtitleVisible ? (
-              <div className="flex justify-center border-t border-slate-200 bg-white px-6 py-1">
-                <p className="truncate text-sm font-semibold text-slate-600/70">
-                  {stripParentheticals(activeThread.title)}
-                </p>
-              </div>
-            ) : null}
 
             <div className="relative border-t border-slate-200 bg-white px-6 py-2">
               {activeThreadArchived ? null : (

@@ -408,8 +408,8 @@ export function ThreadDetailsPanel({
       aria-label="Thread details"
       className={`flex h-full min-h-0 flex-col overflow-hidden border-l border-slate-200 bg-slate-50 ${className ?? ""}`}
     >
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 pt-4 backdrop-blur">
-        <div className="flex items-center justify-between gap-3 pb-3">
+      <div className="sticky top-0 z-10 h-16 border-b border-slate-200 bg-white/95 px-4 backdrop-blur">
+        <div className="flex h-full items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-slate-900">
             Thread Details
           </h2>
@@ -426,7 +426,7 @@ export function ThreadDetailsPanel({
                   void onUpdateThread?.({ archivedAt: isArchived ? null : new Date().toISOString() });
                   onClose();
                 }}
-                className={`inline-flex h-9 items-center justify-center rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
+                className={`inline-flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
                   archiveConfirm
                     ? isArchived
                       ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
@@ -441,7 +441,7 @@ export function ThreadDetailsPanel({
               type="button"
               aria-label="Close thread details"
               onClick={onClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300"
             >
               <span className="text-xs font-semibold">×</span>
             </button>
