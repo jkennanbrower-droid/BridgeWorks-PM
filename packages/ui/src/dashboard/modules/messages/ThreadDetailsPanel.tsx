@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -249,15 +249,18 @@ function LinkedRow({
   label,
   subtext,
   emphasis,
+  onClick,
 }: {
   icon: string;
   label: string;
   subtext?: string;
   emphasis?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-50"
     >
       <IconBox label={icon} />
@@ -364,6 +367,28 @@ export function ThreadDetailsPanel({
 
   const canEdit = Boolean(onUpdateThread && threadMeta);
   const [tagDraft, setTagDraft] = useState("");
+
+  const timeline = useMemo(() => {
+    if (auditEvents?.length) {
+      return auditEvents
+        .slice(-20)
+        .reverse()
+        .map((e) => ({
+          id: e.id,
+          title: e.type,
+          actor: e.actorLabel,
+          timestampLabel: new Date(e.createdAt).toLocaleString(),
+          linkLabel: undefined,
+        }));
+    }
+    return (data.activity ?? []).map((e) => ({
+      id: e.id,
+      title: e.title,
+      actor: e.actor,
+      timestampLabel: e.timestampLabel,
+      linkLabel: e.linkLabel,
+    }));
+  }, [auditEvents, data.activity]);
 
   const toLocalDateTime = (iso?: string) => {
     if (!iso) return "";
@@ -491,7 +516,54 @@ export function ThreadDetailsPanel({
                     <Chip label={data.channel} tone="slate" />
                   </>
                 ) : null}
-              </div>
+              </div>              {canEdit ? (
+                <div className="mt-4 space-y-3">
+                  <InlineSelect
+                    label="Status"
+                    value={threadMeta?.status}
+                    options={(statusOptions ?? ["open", "pending", "resolved", "closed"]).map(
+                      (s) => ({ value: s, label: s }),
+                    )}
+                    onChange={(value) => onUpdateThread?.({ status: value as ThreadStatus })}
+                  />
+                  <InlineSelect
+                    label="Priority"
+                    value={threadMeta?.priority}
+                    options={(priorityOptions ?? ["low", "normal", "high", "urgent"]).map(
+                      (p) => ({ value: p, label: p }),
+                    )}
+                    onChange={(value) => onUpdateThread?.({ priority: value as ThreadPriority })}
+                  />
+                  <InlineSelect
+                    label="Assignee"
+                    value={threadMeta?.assigneeId}
+                    placeholder={threadMeta?.assigneeLabel || "Unassigned"}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...(assignees ?? []).map((a) => ({ value: a.id, label: a.label })),
+                    ]}
+                    onChange={(value) => {
+                      const label =
+                        (assignees ?? []).find((a) => a.id === value)?.label ?? "";
+                      return onUpdateThread?.({ assigneeId: value, assigneeLabel: label });
+                    }}
+                  />
+                  <InlineTextInput
+                    label="Due"
+                    value={toLocalDateTime(threadMeta?.dueDate)}
+                    inputType="datetime-local"
+                    placeholder="—"
+                    onCommit={(value) => onUpdateThread?.({ dueDate: toIsoDateTime(value) })}
+                  />
+                  <InlineTextInput
+                    label="SLA due"
+                    value={toLocalDateTime(threadMeta?.slaDueAt)}
+                    inputType="datetime-local"
+                    placeholder="—"
+                    onCommit={(value) => onUpdateThread?.({ slaDueAt: toIsoDateTime(value) })}
+                  />
+                </div>
+              ) : null}
             </SectionCard>
 
             <SectionCard title="Linked">
@@ -516,6 +588,11 @@ export function ThreadDetailsPanel({
                     icon="WO"
                     label={data.linked.workOrder.label}
                     subtext={data.linked.workOrder.subtext}
+                    onClick={
+                      canEdit && !threadMeta?.linkedWorkOrderId
+                        ? () => void onUpdateThread?.({ linkedWorkOrderId: data.linked.workOrder?.label ?? "" })
+                        : undefined
+                    }
                   />
                 ) : (
                   <LinkedRow
@@ -523,6 +600,14 @@ export function ThreadDetailsPanel({
                     label="Create work order"
                     subtext="Link this thread to a new work order"
                     emphasis
+                    onClick={
+                      canEdit
+                        ? () =>
+                            void onUpdateThread?.({
+                              linkedWorkOrderId: `WO-${Math.floor(1000 + Math.random() * 9000)}`,
+                            })
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -629,9 +714,26 @@ export function ThreadDetailsPanel({
 
             <SectionCard title="Tags">
               <div className="flex flex-wrap gap-2">
-                {data.tags.items.map((tag) => (
-                  <Chip key={tag} label={tag} tone="slate" />
-                ))}
+                {data.tags.items.map((tag) =>
+                  canEdit ? (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        const next = (threadMeta?.tags ?? data.tags.items).filter(
+                          (t) => t !== tag,
+                        );
+                        void onUpdateThread?.({ tags: next });
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200/60"
+                    >
+                      {tag}
+                      <span className="text-slate-400">×</span>
+                    </button>
+                  ) : (
+                    <Chip key={tag} label={tag} tone="slate" />
+                  ),
+                )}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {data.tags.queue ? (
@@ -641,30 +743,77 @@ export function ThreadDetailsPanel({
                   <Chip label={data.tags.escalation} tone="rose" />
                 ) : null}
               </div>
+              {canEdit ? (
+                <div className="mt-4 flex items-center gap-2">
+                  <input
+                    value={tagDraft}
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    placeholder="Add tag"
+                    className="h-9 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      const value = tagDraft.trim();
+                      if (!value) return;
+                      const current = new Set(threadMeta?.tags ?? data.tags.items);
+                      current.add(value);
+                      setTagDraft("");
+                      void onUpdateThread?.({ tags: [...current] });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const value = tagDraft.trim();
+                      if (!value) return;
+                      const current = new Set(threadMeta?.tags ?? data.tags.items);
+                      current.add(value);
+                      setTagDraft("");
+                      void onUpdateThread?.({ tags: [...current] });
+                    }}
+                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  >
+                    Add
+                  </button>
+                </div>
+              ) : null}
             </SectionCard>
           </div>
         ) : (
           <div className="space-y-4">
             <SectionCard title="Routing">
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold text-slate-500">
-                    Assigned to
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {data.routing?.assignedTo ? (
-                      <Chip label={data.routing.assignedTo} tone="slate" />
-                    ) : (
-                      <Chip label="Unassigned" tone="amber" />
-                    )}
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
-                    >
-                      Change
-                    </button>
+                {canEdit ? (
+                  <InlineSelect
+                    label="Assigned to"
+                    value={threadMeta?.assigneeId}
+                    placeholder={threadMeta?.assigneeLabel || "Unassigned"}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...(assignees ?? []).map((a) => ({ value: a.id, label: a.label })),
+                    ]}
+                    onChange={(value) => {
+                      const label =
+                        (assignees ?? []).find((a) => a.id === value)?.label ?? "";
+                      return onUpdateThread?.({
+                        assigneeId: value,
+                        assigneeLabel: label,
+                      });
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-slate-500">
+                      Assigned to
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {data.routing?.assignedTo ? (
+                        <Chip label={data.routing.assignedTo} tone="slate" />
+                      ) : (
+                        <Chip label="Unassigned" tone="amber" />
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold text-slate-500">Queue</p>
                   {data.routing?.queue ? (
@@ -680,12 +829,28 @@ export function ThreadDetailsPanel({
                     <Chip label={data.routing?.sla ?? "No SLA"} tone="slate" />
                   </div>
                 </div>
+                {canEdit ? (
+                  <div className="space-y-3 pt-2">
+                    <InlineTextInput
+                      label="Due"
+                      value={toLocalDateTime(threadMeta?.dueDate)}
+                      inputType="datetime-local"
+                      onCommit={(value) => onUpdateThread?.({ dueDate: toIsoDateTime(value) })}
+                    />
+                    <InlineTextInput
+                      label="SLA due"
+                      value={toLocalDateTime(threadMeta?.slaDueAt)}
+                      inputType="datetime-local"
+                      onCommit={(value) => onUpdateThread?.({ slaDueAt: toIsoDateTime(value) })}
+                    />
+                  </div>
+                ) : null}
               </div>
             </SectionCard>
 
             <SectionCard title="Activity">
               <div className="-mx-1">
-                {(data.activity ?? []).map((event) => (
+                {timeline.map((event) => (
                   <TimelineItem
                     key={event.id}
                     title={event.title}
@@ -729,18 +894,35 @@ export function ThreadDetailsPanel({
         <div className="grid h-full grid-cols-3 items-center gap-2">
           <button
             type="button"
+            onClick={() =>
+              void onUpdateThread?.({
+                linkedWorkOrderId:
+                  threadMeta?.linkedWorkOrderId ??
+                  `WO-${Math.floor(1000 + Math.random() * 9000)}`,
+              })
+            }
+            disabled={!canEdit}
             className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
           >
             Create Work Order
           </button>
           <button
             type="button"
+            onClick={() => {
+              const next = new Date();
+              next.setDate(next.getDate() + 1);
+              next.setHours(10, 0, 0, 0);
+              void onUpdateThread?.({ dueDate: next.toISOString() });
+            }}
+            disabled={!canEdit}
             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300"
           >
             Schedule
           </button>
           <button
             type="button"
+            onClick={() => void onUpdateThread?.({ status: "resolved" })}
+            disabled={!canEdit}
             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300"
           >
             Mark Resolved

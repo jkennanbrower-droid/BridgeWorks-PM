@@ -1362,8 +1362,8 @@ export function MessagesModule({
                 <button
                   type="button"
                   onClick={() => {
-                    const input = document.createElement(\"input\");
-                    input.type = \"file\";
+                    const input = document.createElement("input");
+                    input.type = "file";
                     input.multiple = true;
                     input.onchange = () => {
                       const files = Array.from(input.files ?? []);
@@ -1418,7 +1418,7 @@ export function MessagesModule({
                           key={c}
                           type="button"
                           onClick={() => {
-                            setComposerBody((b) => (b ? b + \"\\n\\n\" + c : c));
+                            setComposerBody((b) => (b ? b + "\n\n" + c : c));
                             setComposerCannedOpen(false);
                           }}
                           className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50"
