@@ -28,6 +28,7 @@ export interface MessagingClient {
         Pick<Attachment, "fileName" | "mimeType" | "sizeBytes"> & {
           publicUrl?: string;
           storageKey?: string;
+          file?: File;
         }
       >;
       scheduledFor?: string;

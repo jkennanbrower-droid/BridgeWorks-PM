@@ -26,6 +26,21 @@ type MockStore = {
 
 export const MOCK_UNASSIGNED_TOKEN = "__unassigned__";
 
+function participantRoleForAppId(appId: string): Participant["role"] {
+  const normalized = String(appId || "").toLowerCase();
+  if (normalized === "staff") return "staff";
+  if (normalized === "user") return "tenant";
+  if (normalized === "org") return "org";
+  return "internal";
+}
+
+function listDemoAppIdsForViewer(viewer: ViewerContext): string[] {
+  const base = ["staff", "user", "org"];
+  const viewerApp = String(viewer.appId);
+  if (!base.includes(viewerApp)) base.push(viewerApp);
+  return base;
+}
+
 export function clearNamespace(appId: string, orgId: string) {
   if (typeof window === "undefined") return;
   const prefix = `bw.messaging.mock.v1.${appId}.${orgId}.`;
@@ -200,9 +215,14 @@ function seedStore(viewer: ViewerContext): MockStore {
           ? "You (Staff)"
           : "You (Tenant)";
 
-  const demoUsers = getDemoUsers(viewer.appId, viewer.orgId);
-  const demoParticipantRole: Participant["role"] =
-    viewer.appId === "org" ? "org" : viewer.isStaffView ? "staff" : "tenant";
+  const demoUsersById = new Map<string, { id: string; displayName: string; avatarUrl?: string; role: Participant["role"] }>();
+  for (const appId of listDemoAppIdsForViewer(viewer)) {
+    const role = participantRoleForAppId(appId);
+    getDemoUsers(appId, viewer.orgId).forEach((u) => {
+      if (demoUsersById.has(u.id)) return;
+      demoUsersById.set(u.id, { id: u.id, displayName: u.displayName, avatarUrl: u.avatarUrl, role });
+    });
+  }
 
   const participants: Participant[] = [
     {
@@ -211,12 +231,12 @@ function seedStore(viewer: ViewerContext): MockStore {
       role: selfRole,
       presence: "online",
     },
-    ...demoUsers
+    ...Array.from(demoUsersById.values())
       .filter((u) => u.id !== viewer.actorId)
       .map((u) => ({
         id: u.id,
         name: u.displayName,
-        role: demoParticipantRole,
+        role: u.role,
         avatarUrl: u.avatarUrl,
         presence: "offline" as const,
       })),
@@ -808,6 +828,7 @@ export class MockMessagingClient implements MessagingClient {
         Pick<Attachment, "fileName" | "mimeType" | "sizeBytes"> & {
           publicUrl?: string;
           storageKey?: string;
+          file?: File;
         }
       >;
       scheduledFor?: string;

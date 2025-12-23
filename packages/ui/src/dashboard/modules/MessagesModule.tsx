@@ -5,6 +5,7 @@ import {
   type ThreadDetailsPanelData,
 } from "./messages/ThreadDetailsPanel";
 
+import { ensureDemoSession, getDemoUsers } from "../demoSession";
 import { useMessagingClient } from "../../messaging/useMessagingClient";
 import { buildViewerContext } from "../../messaging/viewerContext";
 import type {
@@ -19,6 +20,21 @@ import type {
   ThreadStatus,
   ViewerContext,
 } from "../../messaging/types";
+
+function findDemoActorIdForOrg(input: {
+  appId: "staff" | "user" | "org";
+  orgId: string;
+  preferredRole?: string | null;
+}): string | null {
+  const users = getDemoUsers(input.appId, input.orgId);
+  if (!users.length) return null;
+  const preferred = String(input.preferredRole || "").trim().toLowerCase();
+  if (preferred) {
+    const match = users.find((u) => String(u.role || "").trim().toLowerCase() === preferred);
+    if (match) return match.id;
+  }
+  return users[0]!.id;
+}
 
 function SearchIcon() {
   return (
@@ -607,6 +623,39 @@ export function MessagesModule({
     [isStaffView, resolvedAppId, role],
   );
 
+  const activeDemoActorsByApp = useMemo(() => {
+    const out = new Map<"staff" | "user" | "org", string>();
+    (["staff", "user", "org"] as const).forEach((app) => {
+      const session = ensureDemoSession(app);
+      const actorId =
+        session.orgId === viewer.orgId
+          ? session.actorId
+          : findDemoActorIdForOrg({
+              appId: app,
+              orgId: viewer.orgId,
+              preferredRole: session.lastRole,
+            });
+      if (!actorId) return;
+      out.set(app, actorId);
+    });
+    return out;
+  }, [viewer.orgId]);
+
+  const youBadgesForParticipant = useCallback(
+    (participantId: string) => {
+      const badges: Array<{ label: string; key: string }> = [];
+      (["staff", "user", "org"] as const).forEach((app) => {
+        const actorId = activeDemoActorsByApp.get(app);
+        if (!actorId) return;
+        if (participantId !== actorId) return;
+        const appLabel = app === "staff" ? "Staff" : app === "user" ? "User" : "Org";
+        badges.push({ key: `you_${app}`, label: `You (${appLabel})` });
+      });
+      return badges;
+    },
+    [activeDemoActorsByApp],
+  );
+
   const messagingSessionPrefix = `bw.messaging.session.v1.${viewer.appId}.${viewer.orgId}.${viewer.actorId}.${viewer.sessionId}`;
   const messagesUiStorageKey = `${messagingSessionPrefix}.ui`;
   const legacyMessagesUiStorageKey = `bw.messages.ui.v1.${viewer.appId}.${viewer.orgId}`;
@@ -1159,60 +1208,68 @@ export function MessagesModule({
   }, [updateMessageListHasMore, messages.length]);
 
   const sendMessage = useCallback(async () => {
-    if (!activeThread) return;
-    if (activeThread.archivedAt) return;
-    const body = composerBody.trim();
-    if (!body && composerFiles.length === 0) return;
-    const attachments = composerFiles.map((f) => {
-      const isImage = (f.type || "").startsWith("image/");
-      const publicUrl =
-        typeof window !== "undefined" && isImage ? URL.createObjectURL(f) : undefined;
-      if (publicUrl) sentAttachmentObjectUrlsRef.current.push(publicUrl);
-      const id = getComposerFileId(f);
-      const fileName = (composerFileNames.get(id) ?? f.name).trim() || f.name;
-      return {
-        fileName,
-        mimeType: f.type || "application/octet-stream",
-        sizeBytes: f.size,
-        publicUrl,
-      };
-    });
-
-    if (attachments.length) {
-      const attachmentsBody = body
-        ? ""
-        : attachments
-            .map((a) => a.fileName)
-            .filter(Boolean)
-            .join(", ") || "(attachment)";
-
-      await client.sendMessage(activeThread.id, {
-        body: attachmentsBody,
-        channel: "portal",
-        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-        attachments,
+    try {
+      if (!activeThread) return;
+      if (activeThread.archivedAt) return;
+      const body = composerBody.trim();
+      if (!body && composerFiles.length === 0) return;
+      const attachments = composerFiles.map((f) => {
+        const isImage = (f.type || "").startsWith("image/");
+        const publicUrl =
+          typeof window !== "undefined" && isImage ? URL.createObjectURL(f) : undefined;
+        if (publicUrl) sentAttachmentObjectUrlsRef.current.push(publicUrl);
+        const id = getComposerFileId(f);
+        const fileName = (composerFileNames.get(id) ?? f.name).trim() || f.name;
+        return {
+          fileName,
+          mimeType: f.type || "application/octet-stream",
+          sizeBytes: f.size,
+          publicUrl,
+          file: f,
+        };
       });
-    }
 
-    if (body) {
-      await client.sendMessage(activeThread.id, {
-        body,
-        channel: "portal",
-        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-        attachments: [],
-      });
+      if (attachments.length) {
+        const attachmentsBody = body
+          ? ""
+          : attachments
+              .map((a) => a.fileName)
+              .filter(Boolean)
+              .join(", ") || "(attachment)";
+
+        await client.sendMessage(activeThread.id, {
+          body: attachmentsBody,
+          channel: "portal",
+          scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+          attachments,
+        });
+      }
+
+      if (body) {
+        await client.sendMessage(activeThread.id, {
+          body,
+          channel: "portal",
+          scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+          attachments: [],
+        });
+      }
+      setComposerBody("");
+      setComposerFiles([]);
+      setScheduledFor("");
+      setComposerScheduleOpen(false);
+      setBulkDeleteMode(false);
+      setSelectedMessageIds([]);
+      setConfirmBulkDelete(null);
+      await refreshAllThreads();
+      await refreshThreads();
+      const { messages: next } = await client.listMessages(activeThread.id);
+      setMessages(next);
+    } catch (e) {
+      console.error(e);
+      if (typeof window !== "undefined") {
+        window.alert("Message failed to send.");
+      }
     }
-    setComposerBody("");
-    setComposerFiles([]);
-    setScheduledFor("");
-    setComposerScheduleOpen(false);
-    setBulkDeleteMode(false);
-    setSelectedMessageIds([]);
-    setConfirmBulkDelete(null);
-    await refreshAllThreads();
-    await refreshThreads();
-    const { messages: next } = await client.listMessages(activeThread.id);
-    setMessages(next);
   }, [
     activeThread,
     client,
@@ -2251,6 +2308,7 @@ export function MessagesModule({
               <div className="mt-2 flex flex-wrap gap-2">
                 {newThreadSelectedParticipantIds.map((id) => {
                   const p = participants.find((x) => x.id === id);
+                  const youBadges = youBadgesForParticipant(id);
                   return (
                     <button
                       key={id}
@@ -2259,6 +2317,14 @@ export function MessagesModule({
                       className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
                     >
                       {p?.name ?? id}
+                      {youBadges.map((b) => (
+                        <span
+                          key={b.key}
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+                        >
+                          {b.label}
+                        </span>
+                      ))}
                       <span className="text-slate-400">×</span>
                     </button>
                   );
@@ -2270,6 +2336,7 @@ export function MessagesModule({
                   .slice(0, 20)
                   .map((p) => {
                     const selected = newThreadSelectedParticipantIds.includes(p.id);
+                    const youBadges = youBadgesForParticipant(p.id);
                     return (
                       <button
                         key={p.id}
@@ -2283,7 +2350,19 @@ export function MessagesModule({
                           selected ? "bg-slate-50" : "hover:bg-slate-50"
                         }`}
                       >
-                        <span className="font-semibold text-slate-800">{p.name}</span>
+                        <span className="font-semibold text-slate-800">
+                          {p.name}
+                          {youBadges.length
+                            ? youBadges.map((b) => (
+                                <span
+                                  key={b.key}
+                                  className="ml-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+                                >
+                                  {b.label}
+                                </span>
+                              ))
+                            : null}
+                        </span>
                         <span className="text-xs font-semibold text-slate-500">{p.role}</span>
                       </button>
                     );

@@ -70,6 +70,46 @@ enum HealthStatus {
   down
 }
 
+enum MessagingChannel {
+  portal
+  sms
+  email
+}
+
+enum MessagingThreadStatus {
+  open
+  pending
+  resolved
+  closed
+}
+
+enum MessagingThreadPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum MessagingThreadKind {
+  direct
+  group
+}
+
+enum MessagingDeliveryStatus {
+  draft
+  queued
+  sent
+  delivered
+  read
+  failed
+}
+
+enum MessagingNotifyPreference {
+  immediate
+  digest
+  muted
+}
+
 model Test {
   id        Int      @id @default(autoincrement()) @map("Test #")
   createdAt DateTime @default(now()) @map("Created at") @db.Timestamptz(6)
@@ -132,6 +172,12 @@ model Organization {
 
   invites Invite[]
   memberships OrgMembership[]
+  messagingThreads MessagingThread[]
+  messagingThreadParticipants MessagingThreadParticipant[]
+  messagingMessages MessagingMessage[]
+  messagingAttachments MessagingAttachment[]
+  messagingThreadAuditEvents MessagingThreadAuditEvent[]
+  messagingThreadFollowers MessagingThreadFollower[]
 
   @@map("organizations")
 }
@@ -188,4 +234,142 @@ model AuditLog {
   actor Person @relation(fields: [actorPersonId], references: [id])
 
   @@map("audit_log")
+}
+
+model MessagingThread {
+  id               String                  @id @default(uuid()) @db.Uuid
+  orgId            String                  @map("org_id") @db.Uuid
+  kind             MessagingThreadKind
+  title            String                  @db.Text
+  status           MessagingThreadStatus
+  priority         MessagingThreadPriority
+  channelDefault   MessagingChannel        @map("channel_default")
+  propertyId       String?                 @map("property_id") @db.Text
+  unitId           String?                 @map("unit_id") @db.Text
+  assigneeId       String?                 @map("assignee_id") @db.Text
+  assigneeLabel    String?                 @map("assignee_label") @db.Text
+  tags             String[]                @default([]) @map("tags")
+  dueDate          DateTime?               @map("due_date") @db.Timestamptz(6)
+  slaDueAt         DateTime?               @map("sla_due_at") @db.Timestamptz(6)
+  linkedWorkOrderId String?                @map("linked_work_order_id") @db.Text
+  linkedTaskId     String?                 @map("linked_task_id") @db.Text
+  lastMessagePreview String?               @map("last_message_preview") @db.Text
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?               @map("deleted_at") @db.Timestamptz(6)
+
+  organization Organization                @relation(fields: [orgId], references: [id])
+  participants MessagingThreadParticipant[]
+  messages     MessagingMessage[]
+  attachments  MessagingAttachment[]
+  auditEvents  MessagingThreadAuditEvent[]
+  followers    MessagingThreadFollower[]
+
+  @@index([orgId, updatedAt])
+  @@index([orgId, status])
+  @@index([orgId, priority])
+  @@index([orgId, slaDueAt])
+  @@map("messaging_threads")
+}
+
+model MessagingThreadParticipant {
+  id               String                  @id @default(uuid()) @db.Uuid
+  threadId         String                  @map("thread_id") @db.Uuid
+  orgId            String                  @map("org_id") @db.Uuid
+  participantId    String                  @map("participant_id") @db.Text
+  role             String                  @db.Text
+  displayName      String                  @map("display_name") @db.Text
+  avatarUrl        String?                 @map("avatar_url") @db.Text
+  lastReadAt       DateTime?               @map("last_read_at") @db.Timestamptz(6)
+  flagged          Boolean                 @default(false) @map("flagged")
+  notifyPreference MessagingNotifyPreference @default(immediate) @map("notify_preference")
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization                @relation(fields: [orgId], references: [id])
+  thread       MessagingThread             @relation(fields: [threadId], references: [id])
+
+  @@unique([threadId, participantId])
+  @@index([orgId, participantId])
+  @@index([threadId])
+  @@map("messaging_thread_participants")
+}
+
+model MessagingMessage {
+  id               String                @id @default(uuid()) @db.Uuid
+  orgId            String                @map("org_id") @db.Uuid
+  threadId         String                @map("thread_id") @db.Uuid
+  senderId         String                @map("sender_id") @db.Text
+  senderLabel      String                @map("sender_label") @db.Text
+  body             String                @db.Text
+  channel          MessagingChannel
+  internalOnly     Boolean               @default(false) @map("internal_only")
+  scheduledFor     DateTime?             @map("scheduled_for") @db.Timestamptz(6)
+  deliveryStatus   MessagingDeliveryStatus @default(sent) @map("delivery_status")
+  deliveryUpdatedAt DateTime?            @map("delivery_updated_at") @db.Timestamptz(6)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization             @relation(fields: [orgId], references: [id])
+  thread       MessagingThread          @relation(fields: [threadId], references: [id])
+  attachments  MessagingAttachment[]
+
+  @@index([threadId, createdAt])
+  @@index([orgId, createdAt])
+  @@index([deliveryStatus])
+  @@map("messaging_messages")
+}
+
+model MessagingAttachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  threadId    String   @map("thread_id") @db.Uuid
+  messageId   String?  @map("message_id") @db.Uuid
+  fileName    String   @map("file_name") @db.Text
+  mimeType    String   @map("mime_type") @db.Text
+  sizeBytes   BigInt   @map("size_bytes") @db.BigInt
+  uploadedById String  @map("uploaded_by_id") @db.Text
+  uploadedAt  DateTime @map("uploaded_at") @db.Timestamptz(6)
+  storageKey  String?  @map("storage_key") @db.Text
+  publicUrl   String?  @map("public_url") @db.Text
+  scanStatus  String?  @map("scan_status") @db.Text
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  thread       MessagingThread @relation(fields: [threadId], references: [id])
+  message      MessagingMessage? @relation(fields: [messageId], references: [id])
+
+  @@index([threadId, uploadedAt])
+  @@index([messageId])
+  @@map("messaging_attachments")
+}
+
+model MessagingThreadAuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  threadId   String   @map("thread_id") @db.Uuid
+  type       String   @db.Text
+  actorId    String   @map("actor_id") @db.Text
+  actorLabel String   @map("actor_label") @db.Text
+  meta       Json?    @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [orgId], references: [id])
+  thread       MessagingThread @relation(fields: [threadId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([orgId, createdAt])
+  @@map("messaging_thread_audit")
+}
+
+model MessagingThreadFollower {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  threadId   String   @map("thread_id") @db.Uuid
+  followerId String   @map("follower_id") @db.Text
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  thread       MessagingThread @relation(fields: [threadId], references: [id])
+
+  @@unique([threadId, followerId])
+  @@index([followerId])
+  @@map("messaging_thread_followers")
 }

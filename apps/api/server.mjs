@@ -15,6 +15,7 @@ import pinoPretty from "pino-pretty";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { checkAuthClerk, checkDb, checkStorageR2 } from "./dependencyHealth.mjs";
+import { registerMessagingRoutes } from "./messagingRoutes.mjs";
 
 function loadDotEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -367,7 +368,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, X-Upload-Token, X-OPS-KEY, Authorization",
+    "Content-Type, Authorization, X-Upload-Token, X-OPS-KEY, X-Demo-App-Id, X-Demo-Org-Id, X-Demo-Actor-Id, X-Demo-Role, X-Demo-Session-Id",
   );
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
@@ -1142,6 +1143,8 @@ const pool = new pg.Pool({
       ? { rejectUnauthorized: false }
       : undefined,
 });
+
+registerMessagingRoutes({ app, pool, noStore, logger });
 
 app.get("/health/db", async (req, res) => {
   stripConditionalHeaders(req);
