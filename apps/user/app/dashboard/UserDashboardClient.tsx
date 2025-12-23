@@ -15,6 +15,7 @@ const modules: ModuleDef[] = [
   { id: "payments", label: "Payments" },
   { id: "maintenance", label: "Maintenance" },
   { id: "documents", label: "Documents" },
+  { id: "messages", label: "Messages" },
 ];
 
 const overviewLayout: ModuleLayout = {

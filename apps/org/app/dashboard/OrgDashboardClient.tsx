@@ -15,6 +15,7 @@ const modules: ModuleDef[] = [
   { id: "portfolio", label: "Portfolio" },
   { id: "performance", label: "Performance" },
   { id: "approvals", label: "Approvals" },
+  { id: "messages", label: "Messages" },
   { id: "settings", label: "Settings" },
 ];
 

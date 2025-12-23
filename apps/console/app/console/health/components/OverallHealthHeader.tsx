@@ -1,20 +1,24 @@
 import type { ComponentType } from "react";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import CountUp from "react-countup";
 import { format } from "date-fns";
 import {
   Activity,
+  Copy,
   Database,
   Gauge,
   FlaskConical,
+  MoreVertical,
   Percent,
+  RefreshCw,
   TriangleAlert,
   Zap,
 } from "lucide-react";
 
 import { LineChartPanel } from "./charts/LineChartPanel";
+import { HealthTabs } from "./HealthTabs";
 
 type TrendMetric = "latency" | "errorRate" | "requests";
 
@@ -85,6 +89,251 @@ const TREND_TABS: { value: TrendMetric; label: string; color: string }[] = [
   { value: "requests", label: "Requests/min", color: "#16a34a" },
 ];
 
+type HealthHeaderProps = Pick<
+  OverallHealthHeaderProps,
+  | "range"
+  | "onRangeChange"
+  | "refreshMs"
+  | "onRefreshChange"
+  | "lastUpdated"
+  | "isRefreshing"
+  | "onCopySummary"
+  | "onCreateIncident"
+  | "onRefreshNow"
+  | "onTestHealth"
+  | "onStressTest"
+  | "isTestRunning"
+  | "isStressRunning"
+>;
+
+function HealthHeaderTitle() {
+  return (
+    <div className="min-w-[16rem]">
+      <h1 className="text-2xl font-semibold text-slate-900">Platform Health</h1>
+      <p className="mt-2 text-sm text-slate-600">
+        Service status and operational signals across BridgeWorks.
+      </p>
+    </div>
+  );
+}
+
+function HealthHeaderMeta({
+  lastUpdated,
+  isRefreshing,
+  refreshMs,
+}: Pick<HealthHeaderProps, "lastUpdated" | "isRefreshing" | "refreshMs">) {
+  const showAutoRefresh = refreshMs > 0;
+
+  return (
+    <div className="flex items-center justify-end">
+      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+        {showAutoRefresh ? (
+          <span
+            aria-hidden="true"
+            className={`h-2 w-2 rounded-full ${
+              isRefreshing ? "bg-sky-500 animate-pulse" : "bg-emerald-500"
+            }`}
+          />
+        ) : null}
+        <span className="whitespace-nowrap">
+          Last updated {lastUpdated ? format(lastUpdated, "h:mm a") : "Not updated"}
+          {isRefreshing ? " (refreshing)" : ""}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function HealthHeaderControls({
+  range,
+  onRangeChange,
+  refreshMs,
+  onRefreshChange,
+}: Pick<HealthHeaderProps, "range" | "onRangeChange" | "refreshMs" | "onRefreshChange">) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 shadow-sm">
+        <span className="text-xs font-semibold text-slate-500">Range</span>
+        <select
+          value={range}
+          onChange={(event) => onRangeChange(event.target.value)}
+          aria-label="Time range"
+          className="h-10 bg-transparent pr-2 text-sm font-semibold text-slate-700 outline-none"
+        >
+          {RANGE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 shadow-sm">
+        <span className="text-xs font-semibold text-slate-500">Refresh</span>
+        <select
+          value={refreshMs}
+          onChange={(event) => onRefreshChange(Number(event.target.value))}
+          aria-label="Auto refresh interval"
+          className="h-10 bg-transparent pr-2 text-sm font-semibold text-slate-700 outline-none"
+        >
+          {AUTO_REFRESH_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function HealthHeaderActions({
+  onCopySummary,
+  onCreateIncident,
+  onRefreshNow,
+  onTestHealth,
+  onStressTest,
+  isTestRunning,
+  isStressRunning,
+}: Pick<
+  HealthHeaderProps,
+  | "onCopySummary"
+  | "onCreateIncident"
+  | "onRefreshNow"
+  | "onTestHealth"
+  | "onStressTest"
+  | "isTestRunning"
+  | "isStressRunning"
+>) {
+  const menuItemClass =
+    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent";
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCreateIncident}
+        className="inline-flex h-10 items-center justify-center rounded-full border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+      >
+        Create incident
+      </button>
+
+      <button
+        type="button"
+        onClick={onRefreshNow}
+        className="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 max-[600px]:hidden"
+      >
+        Refresh now
+      </button>
+
+      <Popover.Root>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            aria-label="More actions"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="end"
+            sideOffset={8}
+            role="menu"
+            aria-label="More actions"
+            className="z-50 w-56 rounded-2xl border border-slate-200 bg-white p-1 shadow-lg outline-none"
+          >
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onRefreshNow}
+                className={`${menuItemClass} max-[600px]:flex min-[601px]:hidden`}
+              >
+                <RefreshCw className="h-4 w-4 text-slate-500" />
+                Refresh now
+              </button>
+            </Popover.Close>
+
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onTestHealth}
+                disabled={isTestRunning}
+                className={menuItemClass}
+              >
+                <FlaskConical className="h-4 w-4 text-slate-500" />
+                {isTestRunning ? "Testing health" : "Test Health"}
+              </button>
+            </Popover.Close>
+
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onStressTest}
+                disabled={isStressRunning}
+                className={menuItemClass}
+              >
+                <Zap className="h-4 w-4 text-slate-500" />
+                {isStressRunning ? "Stress running" : "Stress Test"}
+              </button>
+            </Popover.Close>
+
+            <Popover.Close asChild>
+              <button type="button" onClick={onCopySummary} className={menuItemClass}>
+                <Copy className="h-4 w-4 text-slate-500" />
+                Copy status summary
+              </button>
+            </Popover.Close>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+  );
+}
+
+function HealthHeader(props: HealthHeaderProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <HealthHeaderTitle />
+        <HealthHeaderMeta
+          lastUpdated={props.lastUpdated}
+          isRefreshing={props.isRefreshing}
+          refreshMs={props.refreshMs}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="order-1 w-full min-[900px]:w-auto">
+          <HealthTabs active="platform" />
+        </div>
+        <div className="order-2 w-full min-[900px]:w-auto min-[900px]:flex-1 min-[900px]:justify-center">
+          <div className="flex justify-start min-[900px]:justify-center">
+            <HealthHeaderControls
+              range={props.range}
+              onRangeChange={props.onRangeChange}
+              refreshMs={props.refreshMs}
+              onRefreshChange={props.onRefreshChange}
+            />
+          </div>
+        </div>
+        <div className="order-3 w-full min-[900px]:w-auto min-[900px]:ml-auto">
+          <HealthHeaderActions
+            onCopySummary={props.onCopySummary}
+            onCreateIncident={props.onCreateIncident}
+            onRefreshNow={props.onRefreshNow}
+            onTestHealth={props.onTestHealth}
+            onStressTest={props.onStressTest}
+            isTestRunning={props.isTestRunning}
+            isStressRunning={props.isStressRunning}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OverallHealthHeader({
   statusLabel,
   statusTone,
@@ -114,100 +363,21 @@ export function OverallHealthHeader({
 
   return (
     <div className="-mx-6 border-b border-slate-200 bg-slate-50/95 px-6 pb-6 pt-4 backdrop-blur">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Platform Health</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Service status and operational signals across BridgeWorks.
-          </p>
-        </div>
-        <div className="flex w-full flex-col items-end gap-3 md:w-auto">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/console/health/platform"
-                className="rounded-full border border-black bg-black px-4 py-2 text-sm font-semibold text-white"
-              >
-                Platform Health
-              </Link>
-              <Link
-                href="/console/health/customer"
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300"
-              >
-                Customer Health
-              </Link>
-            </div>
-            <select
-              value={range}
-              onChange={(event) => onRangeChange(event.target.value)}
-              className="h-10 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
-            >
-              {RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  Range {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={refreshMs}
-              onChange={(event) => onRefreshChange(Number(event.target.value))}
-              className="h-10 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
-            >
-              {AUTO_REFRESH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  Refresh {option.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={onRefreshNow}
-              className="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
-            >
-              Refresh now
-            </button>
-            <span className="text-xs font-semibold text-slate-500">
-              Last updated{" "}
-              {lastUpdated ? format(lastUpdated, "h:mm a") : "Not updated"}
-              {isRefreshing ? " (refreshing)" : ""}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onTestHealth}
-              disabled={isTestRunning}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FlaskConical className="h-4 w-4" />
-              {isTestRunning ? "Testing health" : "Test Health"}
-            </button>
-            <button
-              type="button"
-              onClick={onStressTest}
-              disabled={isStressRunning}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Zap className="h-4 w-4" />
-              {isStressRunning ? "Stress running" : "Stress Test"}
-            </button>
-            <button
-              type="button"
-              onClick={onCopySummary}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
-            >
-              Copy status summary
-            </button>
-            <button
-              type="button"
-              onClick={onCreateIncident}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
-            >
-              Create incident
-            </button>
-          </div>
-        </div>
-      </div>
+      <HealthHeader
+        range={range}
+        onRangeChange={onRangeChange}
+        refreshMs={refreshMs}
+        onRefreshChange={onRefreshChange}
+        lastUpdated={lastUpdated}
+        isRefreshing={isRefreshing}
+        onCopySummary={onCopySummary}
+        onCreateIncident={onCreateIncident}
+        onRefreshNow={onRefreshNow}
+        onTestHealth={onTestHealth}
+        onStressTest={onStressTest}
+        isTestRunning={isTestRunning}
+        isStressRunning={isStressRunning}
+      />
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,2fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

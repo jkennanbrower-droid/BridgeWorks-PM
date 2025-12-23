@@ -1,4 +1,8 @@
+
+"use client";
+
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 
 import type { DashboardProfile, ModuleDef } from "../types";
 
@@ -18,6 +22,7 @@ type DashboardShellProps = {
   onModuleReorder: (moduleOrder: string[]) => void;
   onCustomizeToggle: () => void;
   onResetLayout?: () => void;
+  contentVariant?: "default" | "full";
   children: ReactNode;
 };
 
@@ -78,15 +83,44 @@ export function DashboardShell({
   onModuleReorder,
   onCustomizeToggle,
   onResetLayout,
+  contentVariant = "default",
   children,
 }: DashboardShellProps) {
-  return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="flex min-h-screen flex-col lg:flex-row">
-        <Sidebar profile={profile} />
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-        <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("bw.dashboard.sidebarCollapsed.v1");
+      if (stored === "true") setSidebarCollapsed(true);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "bw.dashboard.sidebarCollapsed.v1",
+        sidebarCollapsed ? "true" : "false",
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [sidebarCollapsed]);
+
+  return (
+    <main className="h-screen overflow-hidden bg-slate-50 text-slate-900">
+      <div className="flex h-full flex-col lg:flex-row">
+        <Sidebar
+          profile={profile}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          activeModuleId={activeModuleId}
+          onModuleSelect={onModuleSelect}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="z-30 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
             <div className="flex flex-wrap items-center gap-4 px-6 py-4">
               <button
                 type="button"
@@ -167,8 +201,14 @@ export function DashboardShell({
             </div>
           </header>
 
-          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-6">
-            {children}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {contentVariant === "full" ? (
+              <div className="flex h-full min-h-0 w-full flex-col">{children}</div>
+            ) : (
+              <div className="mx-auto flex w-full max-w-6xl flex-col px-6 py-6">
+                {children}
+              </div>
+            )}
           </div>
         </div>
       </div>

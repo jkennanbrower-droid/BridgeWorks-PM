@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 
 import { DashboardProvider, useDashboard } from "./DashboardProvider";
 import { DashboardShell } from "./shell/DashboardShell";
+import { MessagesModule } from "./modules/MessagesModule";
 import { OverviewModule } from "./modules/OverviewModule";
 import { PlaceholderModule } from "./modules/PlaceholderModule";
 import type {
@@ -75,6 +76,7 @@ function DashboardContent({
       activeModuleId={activeModuleId}
       customizeMode={state.customizeMode}
       layoutLabel={hasCustomLayout ? "My Layout" : "Standard"}
+      contentVariant={activeModuleId === "messages" ? "full" : "default"}
       onModuleSelect={setActiveModuleId}
       onModuleReorder={setModuleOrder}
       onCustomizeToggle={() => setCustomizeMode(!state.customizeMode)}
@@ -90,6 +92,8 @@ function DashboardContent({
             setCustomLayout(activeModuleId, layout)
           }
         />
+      ) : activeModuleId === "messages" ? (
+        <MessagesModule />
       ) : (
         <PlaceholderModule
           title={activeModule?.label ?? "Module"}

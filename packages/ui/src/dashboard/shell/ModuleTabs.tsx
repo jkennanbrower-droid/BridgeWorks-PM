@@ -33,6 +33,10 @@ type TabProps = {
   onSelect: (moduleId: string) => void;
 };
 
+const SETTINGS_MODULE_ID = "settings";
+const MESSAGES_MODULE_ID = "messages";
+const UTILITY_MODULE_IDS = new Set([SETTINGS_MODULE_ID, MESSAGES_MODULE_ID]);
+
 function Tab({ module, active, customizeMode, onSelect }: TabProps) {
   const {
     attributes,
@@ -69,6 +73,28 @@ function Tab({ module, active, customizeMode, onSelect }: TabProps) {
   );
 }
 
+function ActionTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
+        active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function ModuleTabs({
   modules,
   activeModuleId,
@@ -80,7 +106,10 @@ export function ModuleTabs({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
-  const ids = modules.map((module) => module.id);
+  const settingsModule = modules.find((module) => module.id === SETTINGS_MODULE_ID);
+  const messagesModule = modules.find((module) => module.id === MESSAGES_MODULE_ID);
+  const visibleModules = modules.filter((module) => !UTILITY_MODULE_IDS.has(module.id));
+  const ids = visibleModules.map((module) => module.id);
 
   return (
     <DndContext
@@ -93,12 +122,17 @@ export function ModuleTabs({
         const oldIndex = ids.indexOf(String(active.id));
         const newIndex = ids.indexOf(String(over.id));
         if (oldIndex === -1 || newIndex === -1) return;
-        onModuleReorder(arrayMove(ids, oldIndex, newIndex));
+        const nextVisible = arrayMove(ids, oldIndex, newIndex);
+        const hiddenIds = modules
+          .map((module) => module.id)
+          .filter((id) => !nextVisible.includes(id));
+        onModuleReorder([...nextVisible, ...hiddenIds]);
       }}
     >
       <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
-        <div className="flex flex-wrap gap-2">
-          {modules.map((module) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-1 flex-wrap gap-2">
+            {visibleModules.map((module) => (
             <Tab
               key={module.id}
               module={module}
@@ -106,7 +140,25 @@ export function ModuleTabs({
               customizeMode={customizeMode}
               onSelect={onModuleSelect}
             />
-          ))}
+            ))}
+          </div>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {messagesModule ? (
+              <ActionTab
+                label={messagesModule.label}
+                active={activeModuleId === messagesModule.id}
+                onClick={() => onModuleSelect(messagesModule.id)}
+              />
+            ) : null}
+            {settingsModule ? (
+              <ActionTab
+                label={settingsModule.label}
+                active={activeModuleId === settingsModule.id}
+                onClick={() => onModuleSelect(settingsModule.id)}
+              />
+            ) : null}
+          </div>
         </div>
       </SortableContext>
     </DndContext>
