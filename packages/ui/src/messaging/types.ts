@@ -48,6 +48,9 @@ export type Message = {
   createdAt: string;
   channel: MessagingChannel;
   attachments?: Attachment[];
+  deletedAt?: string;
+  deletedById?: string;
+  deletedForEveryone?: boolean;
   delivery?: {
     status: "draft" | "queued" | "sent" | "delivered" | "read" | "failed";
     updatedAt?: string;

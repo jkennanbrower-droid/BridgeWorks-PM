@@ -838,6 +838,47 @@ export class MockMessagingClient implements MessagingClient {
     return { ...message };
   }
 
+  async deleteMessage(threadId: string, messageId: string): Promise<void> {
+    const thread = this.store.threadsById[threadId];
+    if (!thread) throw new Error("Thread not found");
+
+    const list = this.store.messagesByThreadId[threadId] ?? [];
+    const message = list.find((m) => m.id === messageId);
+    if (!message) return;
+
+    Object.keys(this.store.attachmentsById).forEach((id) => {
+      const att = this.store.attachmentsById[id];
+      if (att?.threadId === threadId && att?.messageId === messageId) {
+        delete this.store.attachmentsById[id];
+      }
+    });
+
+    const updatedAt = nowIso();
+    message.body = "Message Deleted";
+    message.attachments = [];
+    message.deletedAt = updatedAt;
+    message.deletedById = this.viewer.actorId;
+    message.deletedForEveryone = true;
+
+    thread.updatedAt = updatedAt;
+    thread.lastMessagePreview = list.length ? (list[list.length - 1]?.body ?? "") : "";
+
+    this.store.auditByThreadId[threadId] = [
+      ...(this.store.auditByThreadId[threadId] ?? []),
+      {
+        id: newId("ae"),
+        threadId,
+        type: "message.deleted",
+        actorId: this.viewer.actorId,
+        actorLabel: this.store.participantsById[this.viewer.actorId]?.name ?? "You",
+        createdAt: updatedAt,
+        meta: { messageId },
+      },
+    ];
+
+    this.persist();
+  }
+
   async updateThread(
     threadId: string,
     patch: Partial<

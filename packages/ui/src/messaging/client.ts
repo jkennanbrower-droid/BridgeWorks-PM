@@ -34,6 +34,7 @@ export interface MessagingClient {
       internalOnly?: boolean;
     },
   ): Promise<Message>;
+  deleteMessage(threadId: string, messageId: string): Promise<void>;
   updateThread(
     threadId: string,
     patch: Partial<
@@ -64,4 +65,3 @@ export interface MessagingClient {
   }): Promise<{ threads: Thread[]; messages: Message[]; attachments: Attachment[] }>;
   resetDemoSessionData?(scope?: "current" | "all"): Promise<void> | void;
 }
-

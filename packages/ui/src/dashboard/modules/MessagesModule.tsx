@@ -8,6 +8,7 @@ import {
 import { useMessagingClient } from "../../messaging/useMessagingClient";
 import type {
   AuditEvent,
+  Attachment,
   Message,
   MessagingChannel,
   SortKey,
@@ -168,6 +169,102 @@ function AvatarCircle({
   );
 }
 
+function ImageLightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur">
+      <button
+        type="button"
+        aria-label="Close image preview"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+      <div className="relative z-10 max-h-[85vh] max-w-[85vw] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/20 shadow-2xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} className="block max-h-[85vh] max-w-[85vw] object-contain" />
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = "Delete",
+  cancelLabel = "Cancel",
+  tone = "danger",
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: "danger" | "default";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  const confirmClasses =
+    tone === "danger"
+      ? "bg-rose-600 text-white hover:bg-rose-700"
+      : "bg-slate-900 text-white hover:bg-slate-800";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-6 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="absolute inset-0 cursor-default"
+        onClick={onCancel}
+      />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        <p className="mt-2 text-sm text-slate-600">{message}</p>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+            onClick={onCancel}
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={`h-10 rounded-xl px-4 text-sm font-semibold shadow-sm transition ${confirmClasses}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function findMatches(text: string, query: string) {
   const q = query.trim();
   if (!q) return [];
@@ -207,6 +304,16 @@ function MessageBubble({
   senderLabel,
   senderAvatarUrl,
   showAvatar,
+  attachments,
+  onOpenAttachmentImage,
+  menuOpen,
+  onToggleMenu,
+  onDeleteForMe,
+  onDeleteForEveryone,
+  canDeleteForEveryone,
+  selectMode,
+  selected,
+  onToggleSelected,
   createdAt,
   body,
   matches,
@@ -222,6 +329,16 @@ function MessageBubble({
   senderLabel: string;
   senderAvatarUrl?: string;
   showAvatar?: boolean;
+  attachments?: Attachment[];
+  onOpenAttachmentImage?: (src: string, alt: string) => void;
+  menuOpen?: boolean;
+  onToggleMenu?: () => void;
+  onDeleteForMe?: () => void;
+  onDeleteForEveryone?: () => void;
+  canDeleteForEveryone?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
   createdAt: string;
   body: string;
   matches: Array<{ start: number; end: number }>;
@@ -232,8 +349,19 @@ function MessageBubble({
   showTimestamp: boolean;
   onToggleTimestamp: (messageId: string) => void;
 }) {
+  const isDeleted = body.trim() === "Message Deleted";
   const parts: Array<{ text: string; highlight?: boolean; matchIndex?: number }> =
     matches.length === 0 ? [{ text: body }] : [];
+
+  const imageAttachments = useMemo(
+    () =>
+      (attachments ?? []).filter((a) => a.mimeType?.startsWith("image/") && Boolean(a.publicUrl)),
+    [attachments],
+  );
+  const nonImageAttachments = useMemo(
+    () => (attachments ?? []).filter((a) => !a.mimeType?.startsWith("image/") || !a.publicUrl),
+    [attachments],
+  );
 
   if (matches.length) {
     let cursor = 0;
@@ -251,6 +379,18 @@ function MessageBubble({
 
   return (
     <div className={`flex gap-3 ${mine ? "justify-end" : "justify-start"}`}>
+      {selectMode ? (
+        <div className="pt-2">
+          <input
+            type="checkbox"
+            checked={Boolean(selected)}
+            onChange={() => onToggleSelected?.()}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-slate-300 text-slate-900"
+            aria-label={selected ? "Deselect message" : "Select message"}
+          />
+        </div>
+      ) : null}
       {!mine && showAvatar ? (
         <div className="pt-1">
           <AvatarCircle name={senderLabel} avatarUrl={senderAvatarUrl} size={28} />
@@ -260,13 +400,25 @@ function MessageBubble({
         <div
           className={`break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
             mine ? "border border-slate-200 bg-white" : "bg-slate-100"
-          } cursor-pointer`}
+          } ${isDeleted ? "" : "cursor-pointer"}`}
           role="button"
           tabIndex={0}
-          onClick={() => onToggleTimestamp(messageId)}
+          onClick={() => {
+            if (selectMode) {
+              onToggleSelected?.();
+              return;
+            }
+            if (isDeleted) return;
+            onToggleTimestamp(messageId);
+          }}
           onKeyDown={(e) => {
             if (e.key !== "Enter" && e.key !== " ") return;
             e.preventDefault();
+            if (selectMode) {
+              onToggleSelected?.();
+              return;
+            }
+            if (isDeleted) return;
             onToggleTimestamp(messageId);
           }}
         >
@@ -287,28 +439,149 @@ function MessageBubble({
                 </span>
               </>
             ) : null}
+            <span className="ml-auto" />
+            <div className="relative -mr-1">
+              {selectMode ? null : (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Message options"
+                    disabled={isDeleted}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onToggleMenu?.();
+                    }}
+                  >
+                    <span aria-hidden="true">⋯</span>
+                  </button>
+                  {menuOpen ? (
+                    <div
+                      className={`absolute z-20 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl ${
+                        mine ? "right-0" : "left-0"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                      role="menu"
+                    >
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                        onClick={() => onDeleteForMe?.()}
+                        role="menuitem"
+                      >
+                        Delete for you
+                      </button>
+                      {canDeleteForEveryone ? (
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                          onClick={() => onDeleteForEveryone?.()}
+                          role="menuitem"
+                        >
+                          Delete for everyone
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
           </div>
-          <div className="mt-2 whitespace-pre-wrap leading-6 text-slate-800">
-            {parts.map((p, i) =>
-              p.highlight ? (
-                <mark
+          {body.trim() ? (
+            <div
+              className={`mt-2 whitespace-pre-wrap leading-6 ${
+                isDeleted ? "italic text-slate-400" : "text-slate-800"
+              }`}
+            >
+              {parts.map((p, i) =>
+                p.highlight ? (
+                  <mark
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={i}
+                    data-match-index={p.matchIndex}
+                    className={`rounded px-0.5 ${
+                      p.matchIndex === activeMatchIndex
+                        ? "bg-amber-200 ring-2 ring-amber-300"
+                        : "bg-amber-100"
+                    }`}
+                  >
+                    {p.text}
+                  </mark>
+                ) : (
                   // eslint-disable-next-line react/no-array-index-key
-                  key={i}
-                  data-match-index={p.matchIndex}
-                  className={`rounded px-0.5 ${
-                    p.matchIndex === activeMatchIndex
-                      ? "bg-amber-200 ring-2 ring-amber-300"
-                      : "bg-amber-100"
-                  }`}
-                >
-                  {p.text}
-                </mark>
-              ) : (
-                // eslint-disable-next-line react/no-array-index-key
-                <span key={i}>{p.text}</span>
-              ),
-            )}
-          </div>
+                  <span key={i}>{p.text}</span>
+                ),
+              )}
+            </div>
+          ) : null}
+
+          {attachments?.length ? (
+            <div className="mt-3 space-y-2">
+              {imageAttachments.length ? (
+                imageAttachments.length === 1 ? (
+                  <button
+                    type="button"
+                    className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                    onClick={(e) => {
+                      const a = imageAttachments[0];
+                      const src = a?.publicUrl;
+                      if (!src) return;
+                      e.stopPropagation();
+                      onOpenAttachmentImage?.(src, a.fileName);
+                    }}
+                    aria-label={`Open image ${imageAttachments[0]?.fileName ?? "attachment"}`}
+                  >
+                    <div className="flex max-w-[520px] items-center justify-center bg-slate-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageAttachments[0]!.publicUrl!}
+                        alt={imageAttachments[0]!.fileName}
+                        className="block h-[180px] w-auto max-w-[520px] object-contain transition group-hover:scale-[1.01]"
+                      />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="grid max-w-[380px] grid-cols-2 gap-2">
+                    {imageAttachments.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="group aspect-square w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                        onClick={(e) => {
+                          const src = a.publicUrl;
+                          if (!src) return;
+                          e.stopPropagation();
+                          onOpenAttachmentImage?.(src, a.fileName);
+                        }}
+                        aria-label={`Open image ${a.fileName}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={a.publicUrl!}
+                          alt={a.fileName}
+                          className="h-full w-full object-cover transition group-hover:scale-[1.01]"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : null}
+
+              {nonImageAttachments.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {nonImageAttachments.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex max-w-[260px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm"
+                    >
+                      <span className="truncate">{a.fileName}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {showTimestamp ? (
           <p className="mt-1 text-xs text-slate-400">{formatTimestampShort(createdAt)}</p>
@@ -326,6 +599,7 @@ export function MessagesModule({
   isStaffView?: boolean;
 }) {
   const messagesUiStorageKey = `bw.messages.ui.v1.${appId}`;
+  const hiddenMessagesStorageKey = `bw.messages.hidden.v1.${appId}`;
 
   const viewer = useMemo<ViewerContext>(
     () => ({
@@ -365,6 +639,20 @@ export function MessagesModule({
   }, [activeThread]);
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<string[]>([]);
+  const hiddenMessageIdSet = useMemo(() => new Set(hiddenMessageIds), [hiddenMessageIds]);
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !hiddenMessageIdSet.has(m.id)),
+    [hiddenMessageIdSet, messages],
+  );
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState<{
+    scope: "me" | "everyone";
+    threadId: string;
+    messageIds: string[];
+  } | null>(null);
 
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -374,12 +662,27 @@ export function MessagesModule({
   const [composerBody, setComposerBody] = useState("");
   const [composerChannel, setComposerChannel] = useState<MessagingChannel>("portal");
   const [composerFiles, setComposerFiles] = useState<File[]>([]);
+  const [composerFilePreviews, setComposerFilePreviews] = useState<Map<string, string>>(() => new Map());
+  const [composerFileNames, setComposerFileNames] = useState<Map<string, string>>(() => new Map());
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ threadId: string; messageId: string } | null>(null);
+  const sentAttachmentObjectUrlsRef = useRef<string[]>([]);
+  const composerFileIdMapRef = useRef<WeakMap<File, string>>(new WeakMap());
+  const composerFileIdSeqRef = useRef(0);
   const [composerScheduleOpen, setComposerScheduleOpen] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [inThreadSearch, setInThreadSearch] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [expandedTimestampMessageIds, setExpandedTimestampMessageIds] = useState<string[]>([]);
   const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+
+  const getComposerFileId = useCallback((file: File) => {
+    const existing = composerFileIdMapRef.current.get(file);
+    if (existing) return existing;
+    const next = `cf_${(composerFileIdSeqRef.current += 1)}`;
+    composerFileIdMapRef.current.set(file, next);
+    return next;
+  }, []);
 
   const [bulkTagDraft, setBulkTagDraft] = useState("");
 
@@ -510,6 +813,51 @@ export function MessagesModule({
   useEffect(() => {
     setComposerChannel(activeThread?.channelDefault ?? "portal");
   }, [activeThread?.channelDefault]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setComposerFilePreviews((prev) => {
+      const next = new Map(prev);
+      const keep = new Set<string>();
+      composerFiles.forEach((f) => {
+        const id = getComposerFileId(f);
+        keep.add(id);
+        if (!next.has(id) && f.type.startsWith("image/")) {
+          next.set(id, URL.createObjectURL(f));
+        }
+      });
+      Array.from(next.keys()).forEach((k) => {
+        if (!keep.has(k)) {
+          const url = next.get(k);
+          if (url) URL.revokeObjectURL(url);
+          next.delete(k);
+        }
+      });
+      return next;
+    });
+
+    setComposerFileNames((prev) => {
+      const next = new Map(prev);
+      const keep = new Set<string>();
+      composerFiles.forEach((f) => {
+        const id = getComposerFileId(f);
+        keep.add(id);
+        if (!next.has(id)) next.set(id, f.name);
+      });
+      Array.from(next.keys()).forEach((k) => {
+        if (!keep.has(k)) next.delete(k);
+      });
+      return next;
+    });
+  }, [composerFiles, getComposerFileId]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === "undefined") return;
+      sentAttachmentObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      sentAttachmentObjectUrlsRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -703,6 +1051,31 @@ export function MessagesModule({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(`${hiddenMessagesStorageKey}.${viewer.actorId}`);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) setHiddenMessageIds(parsed.filter((x) => typeof x === "string"));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        `${hiddenMessagesStorageKey}.${viewer.actorId}`,
+        JSON.stringify(hiddenMessageIds),
+      );
+    } catch {
+      // ignore
+    }
+  }, [hiddenMessageIds, hiddenMessagesStorageKey, viewer.actorId]);
+
+  useEffect(() => {
     const el = threadListRef.current;
     if (!el) return;
     updateThreadListHasMore();
@@ -723,20 +1096,52 @@ export function MessagesModule({
     if (activeThread.archivedAt) return;
     const body = composerBody.trim();
     if (!body && composerFiles.length === 0) return;
-    await client.sendMessage(activeThread.id, {
-      body: body || "(attachment)",
-      channel: "portal",
-      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-      attachments: composerFiles.map((f) => ({
-        fileName: f.name,
+    const attachments = composerFiles.map((f) => {
+      const isImage = (f.type || "").startsWith("image/");
+      const publicUrl =
+        typeof window !== "undefined" && isImage ? URL.createObjectURL(f) : undefined;
+      if (publicUrl) sentAttachmentObjectUrlsRef.current.push(publicUrl);
+      const id = getComposerFileId(f);
+      const fileName = (composerFileNames.get(id) ?? f.name).trim() || f.name;
+      return {
+        fileName,
         mimeType: f.type || "application/octet-stream",
         sizeBytes: f.size,
-      })),
+        publicUrl,
+      };
     });
+
+    if (attachments.length) {
+      const attachmentsBody = body
+        ? ""
+        : attachments
+            .map((a) => a.fileName)
+            .filter(Boolean)
+            .join(", ") || "(attachment)";
+
+      await client.sendMessage(activeThread.id, {
+        body: attachmentsBody,
+        channel: "portal",
+        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+        attachments,
+      });
+    }
+
+    if (body) {
+      await client.sendMessage(activeThread.id, {
+        body,
+        channel: "portal",
+        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+        attachments: [],
+      });
+    }
     setComposerBody("");
     setComposerFiles([]);
     setScheduledFor("");
     setComposerScheduleOpen(false);
+    setBulkDeleteMode(false);
+    setSelectedMessageIds([]);
+    setConfirmBulkDelete(null);
     await refreshAllThreads();
     await refreshThreads();
     const { messages: next } = await client.listMessages(activeThread.id);
@@ -745,7 +1150,9 @@ export function MessagesModule({
     activeThread,
     client,
     composerBody,
+    composerFileNames,
     composerFiles,
+    getComposerFileId,
     refreshAllThreads,
     refreshThreads,
     scheduledFor,
@@ -756,7 +1163,7 @@ export function MessagesModule({
     if (!q) return { matchCount: 0, byMessageId: new Map<string, Array<{ start: number; end: number }>>() };
     const byMessageId = new Map<string, Array<{ start: number; end: number }>>();
     let count = 0;
-    messages.forEach((m) => {
+    visibleMessages.forEach((m) => {
       const matches = findMatches(m.body, q);
       if (matches.length) {
         byMessageId.set(m.id, matches);
@@ -764,7 +1171,7 @@ export function MessagesModule({
       }
     });
     return { matchCount: count, byMessageId };
-  }, [inThreadSearch, messages]);
+  }, [inThreadSearch, visibleMessages]);
 
   const directRecipient = useMemo(() => {
     if (!activeThread) return null;
@@ -785,12 +1192,34 @@ export function MessagesModule({
 
   const lastMessageIdBySender = useMemo(() => {
     const map = new Map<string, string>();
-    messages.forEach((m) => map.set(m.senderId, m.id));
+    visibleMessages.forEach((m) => map.set(m.senderId, m.id));
     return map;
-  }, [messages]);
+  }, [visibleMessages]);
+
+  const selectedMessages = useMemo(
+    () => visibleMessages.filter((m) => selectedMessageIds.includes(m.id)),
+    [selectedMessageIds, visibleMessages],
+  );
+
+  const canBulkDeleteForEveryone = useMemo(() => {
+    if (!selectedMessages.length) return false;
+    return selectedMessages.every((m) => m.senderId === viewer.actorId);
+  }, [selectedMessages, viewer.actorId]);
+
+  useEffect(() => {
+    if (!selectedMessageIds.length) return;
+    const keep = new Set(visibleMessages.map((m) => m.id));
+    setSelectedMessageIds((prev) => prev.filter((id) => keep.has(id)));
+  }, [selectedMessageIds.length, visibleMessages]);
 
   const toggleTimestamp = useCallback((messageId: string) => {
     setExpandedTimestampMessageIds((prev) =>
+      prev.includes(messageId) ? prev.filter((id) => id !== messageId) : [...prev, messageId],
+    );
+  }, []);
+
+  const toggleSelectedMessage = useCallback((messageId: string) => {
+    setSelectedMessageIds((prev) =>
       prev.includes(messageId) ? prev.filter((id) => id !== messageId) : [...prev, messageId],
     );
   }, []);
@@ -816,7 +1245,7 @@ export function MessagesModule({
       root.scrollTop = root.scrollHeight;
     });
     pendingScrollToBottomThreadIdRef.current = null;
-  }, [activeThreadId, inThreadSearch, messages]);
+  }, [activeThreadId, inThreadSearch, visibleMessages]);
 
   useEffect(() => {
     if (!composerActionsOpen) return;
@@ -836,6 +1265,29 @@ export function MessagesModule({
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeMatchIndex]);
+
+  useEffect(() => {
+    if (!openMessageMenuId) return;
+    if (typeof window === "undefined") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMessageMenuId(null);
+    };
+    const onClick = () => setOpenMessageMenuId(null);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("click", onClick);
+    };
+  }, [openMessageMenuId]);
+
+  useEffect(() => {
+    setOpenMessageMenuId(null);
+    setConfirmDelete(null);
+    setBulkDeleteMode(false);
+    setSelectedMessageIds([]);
+    setConfirmBulkDelete(null);
+  }, [activeThreadId]);
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-white">
@@ -1187,10 +1639,10 @@ export function MessagesModule({
                         <p className="mt-1 text-sm text-slate-500">Select a thread to view messages.</p>
                       </div>
                     </div>
-                  ) : messages.length === 0 ? (
+                  ) : visibleMessages.length === 0 ? (
                     <div className="flex h-full min-h-[220px] items-center justify-center">
                       <div className="max-w-sm text-center">
-                        <p className="text-sm font-semibold text-slate-900">No messages yet</p>
+                        <p className="text-sm font-semibold text-slate-900">No messages</p>
                         <p className="mt-1 text-sm text-slate-500">
                           Start the conversation by sending a message.
                         </p>
@@ -1199,14 +1651,14 @@ export function MessagesModule({
                   ) : (
                     (() => {
                       let matchIndexOffset = 0;
-                      return messages.map((m, i) => {
+                      return visibleMessages.map((m, i) => {
                       const mine = m.senderId === viewer.actorId;
                       const sender = activeThreadParticipantById.get(m.senderId);
                       const showAvatar = !mine && activeThread?.kind === "group";
                       const matches = matchData.byMessageId.get(m.id) ?? [];
                       const offset = matchIndexOffset;
                       matchIndexOffset += matches.length;
-                      const prev = messages[i - 1];
+                      const prev = visibleMessages[i - 1];
                       const showDivider = shouldShowTimeDivider(prev?.createdAt, m.createdAt);
                         return (
                           <div key={m.id}>
@@ -1225,6 +1677,8 @@ export function MessagesModule({
                               senderLabel={m.senderLabel}
                               senderAvatarUrl={sender?.avatarUrl}
                               showAvatar={showAvatar}
+                              attachments={m.attachments}
+                              onOpenAttachmentImage={(src, alt) => setLightbox({ src, alt })}
                               createdAt={m.createdAt}
                               body={m.body}
                               matches={matches}
@@ -1232,6 +1686,25 @@ export function MessagesModule({
                               activeMatchIndex={activeMatchIndex}
                               attachmentsCount={m.attachments?.length ?? 0}
                               scheduledFor={m.scheduledFor}
+                              selectMode={bulkDeleteMode}
+                              selected={selectedMessageIds.includes(m.id)}
+                              onToggleSelected={() => toggleSelectedMessage(m.id)}
+                              menuOpen={openMessageMenuId === m.id}
+                              onToggleMenu={() =>
+                                setOpenMessageMenuId((prevId) => (prevId === m.id ? null : m.id))
+                              }
+                              onDeleteForMe={() => {
+                                setHiddenMessageIds((prevIds) =>
+                                  prevIds.includes(m.id) ? prevIds : [...prevIds, m.id],
+                                );
+                                setOpenMessageMenuId(null);
+                              }}
+                              canDeleteForEveryone={mine}
+                              onDeleteForEveryone={() => {
+                                setOpenMessageMenuId(null);
+                                if (!mine) return;
+                                setConfirmDelete({ threadId: m.threadId, messageId: m.id });
+                              }}
                               showTimestamp={
                                 expandedTimestampSet.has(m.id) ||
                                 lastMessageIdBySender.get(m.senderId) === m.id
@@ -1265,6 +1738,65 @@ export function MessagesModule({
             <div className="relative border-t border-slate-200 bg-white px-6 py-2">
               {activeThreadArchived ? null : (
                 <>
+                  {bulkDeleteMode ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {selectedMessageIds.length} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulkDeleteMode(false);
+                          setSelectedMessageIds([]);
+                          setConfirmBulkDelete(null);
+                        }}
+                        className="ml-auto h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedMessageIds.length === 0}
+                        onClick={() => {
+                          if (!activeThread) return;
+                          setConfirmBulkDelete({
+                            scope: "me",
+                            threadId: activeThread.id,
+                            messageIds: selectedMessageIds,
+                          });
+                        }}
+                        className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:opacity-50"
+                      >
+                        Delete for you
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedMessageIds.length === 0 || !canBulkDeleteForEveryone}
+                        onClick={() => {
+                          if (!activeThread) return;
+                          setConfirmBulkDelete({
+                            scope: "everyone",
+                            threadId: activeThread.id,
+                            messageIds: selectedMessageIds,
+                          });
+                        }}
+                        className={`h-9 rounded-xl px-3 text-xs font-semibold shadow-sm transition ${
+                          selectedMessageIds.length === 0 || !canBulkDeleteForEveryone
+                            ? "border border-slate-200 bg-white text-slate-400"
+                            : "bg-rose-600 text-white hover:bg-rose-700"
+                        }`}
+                        aria-disabled={selectedMessageIds.length === 0 || !canBulkDeleteForEveryone}
+                        title={
+                          canBulkDeleteForEveryone
+                            ? "Delete for everyone"
+                            : "Only your own messages can be deleted for everyone"
+                        }
+                      >
+                        Delete for everyone
+                      </button>
+                    </div>
+                  ) : null}
+
                   {composerFiles.length ? (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {composerFiles.map((f) => (
@@ -1272,7 +1804,39 @@ export function MessagesModule({
                       key={`${f.name}-${f.lastModified}`}
                       className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
                     >
-                      {f.name}
+                      {f.type.startsWith("image/") ? (
+                        <button
+                          type="button"
+                          className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+                          aria-label={`Preview ${f.name}`}
+                          onClick={() => {
+                            const src = composerFilePreviews.get(getComposerFileId(f));
+                            if (!src) return;
+                            setLightbox({ src, alt: f.name });
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={composerFilePreviews.get(getComposerFileId(f)) ?? ""}
+                            alt={f.name}
+                            className="h-8 w-8 object-cover"
+                          />
+                        </button>
+                      ) : null}
+                      <input
+                        value={composerFileNames.get(getComposerFileId(f)) ?? f.name}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const id = getComposerFileId(f);
+                          setComposerFileNames((prev) => {
+                            const next = new Map(prev);
+                            next.set(id, value);
+                            return next;
+                          });
+                        }}
+                        className="min-w-[12ch] max-w-[320px] truncate bg-transparent text-xs font-semibold text-slate-700 outline-none"
+                        aria-label="Attachment name"
+                      />
                       <button
                         type="button"
                         onClick={() => setComposerFiles((prev) => prev.filter((x) => x !== f))}
@@ -1369,6 +1933,18 @@ export function MessagesModule({
                       >
                         Mark Resolved
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setComposerActionsOpen(false);
+                          setOpenMessageMenuId(null);
+                          setBulkDeleteMode(true);
+                          setSelectedMessageIds([]);
+                        }}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                      >
+                        Delete Messages
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -1387,7 +1963,7 @@ export function MessagesModule({
                     input.click();
                     }}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300"
-                    disabled={!activeThread || activeThreadArchived}
+                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
                   >
                   <svg
                     aria-hidden="true"
@@ -1418,7 +1994,7 @@ export function MessagesModule({
                       void sendMessage();
                     }}
                     className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                    disabled={!activeThread || activeThreadArchived}
+                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
                   />
                 </div>
                 <button
@@ -1426,7 +2002,7 @@ export function MessagesModule({
                   aria-label="Send message"
                   onClick={() => void sendMessage()}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
-                  disabled={!activeThread || activeThreadArchived}
+                  disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
                 >
                   <PaperPlaneIcon />
                   Send
@@ -1699,6 +2275,81 @@ export function MessagesModule({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {lightbox ? (
+        <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+      ) : null}
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title="Delete message?"
+          message="This will delete the message for everyone in the thread."
+          confirmLabel="Delete for everyone"
+          cancelLabel="Cancel"
+          tone="danger"
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => {
+            const { threadId, messageId } = confirmDelete;
+            setConfirmDelete(null);
+            void (async () => {
+              await client.deleteMessage(threadId, messageId);
+              setHiddenMessageIds((prevIds) => prevIds.filter((id) => id !== messageId));
+              await refreshAllThreads();
+              await refreshThreads();
+              const { messages: next } = await client.listMessages(threadId);
+              setMessages(next);
+            })();
+          }}
+        />
+      ) : null}
+
+      {confirmBulkDelete ? (
+        <ConfirmDialog
+          title={
+            confirmBulkDelete.scope === "everyone" ? "Delete messages for everyone?" : "Delete messages for you?"
+          }
+          message={`Delete ${confirmBulkDelete.messageIds.length} message${
+            confirmBulkDelete.messageIds.length === 1 ? "" : "s"
+          }${confirmBulkDelete.scope === "everyone" ? " for everyone in the thread" : " from your view"}?`}
+          confirmLabel={confirmBulkDelete.scope === "everyone" ? "Delete for everyone" : "Delete for you"}
+          cancelLabel="Cancel"
+          tone={confirmBulkDelete.scope === "everyone" ? "danger" : "default"}
+          onCancel={() => setConfirmBulkDelete(null)}
+          onConfirm={() => {
+            const { scope, threadId, messageIds } = confirmBulkDelete;
+            setConfirmBulkDelete(null);
+            if (scope === "me") {
+              setHiddenMessageIds((prev) => {
+                const next = new Set(prev);
+                messageIds.forEach((id) => next.add(id));
+                return [...next];
+              });
+              setBulkDeleteMode(false);
+              setSelectedMessageIds([]);
+              return;
+            }
+
+            void (async () => {
+              const allowed = new Set(
+                messages.filter((m) => m.senderId === viewer.actorId).map((m) => m.id),
+              );
+              if (!messageIds.every((id) => allowed.has(id))) {
+                setBulkDeleteMode(false);
+                setSelectedMessageIds([]);
+                return;
+              }
+              await Promise.all(messageIds.map((id) => client.deleteMessage(threadId, id)));
+              setHiddenMessageIds((prevIds) => prevIds.filter((id) => !messageIds.includes(id)));
+              setBulkDeleteMode(false);
+              setSelectedMessageIds([]);
+              await refreshAllThreads();
+              await refreshThreads();
+              const { messages: next } = await client.listMessages(threadId);
+              setMessages(next);
+            })();
+          }}
+        />
       ) : null}
     </section>
   );
