@@ -93,7 +93,7 @@ function DashboardContent({
           }
         />
       ) : activeModuleId === "messages" ? (
-        <MessagesModule />
+        <MessagesModule isStaffView={role === "staff"} />
       ) : (
         <PlaceholderModule
           title={activeModule?.label ?? "Module"}
