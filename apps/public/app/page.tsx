@@ -13,6 +13,7 @@ import { SecuritySection } from "./components/landing/SecuritySection";
 import { TestimonialsSection } from "./components/landing/TestimonialsSection";
 import { WorkflowSection } from "./components/landing/WorkflowSection";
 import { layout } from "./components/ui/layoutTokens";
+import Link from "next/link";
 
 export default function Page() {
   return (
@@ -36,15 +37,29 @@ export default function Page() {
 
         <footer className="border-t border-black/10 bg-white py-10 dark:border-white/10 dark:bg-black">
           <div className={layout.container}>
-            {/* EDIT ME: Update footer links and legal copy. */}
             <div className="flex flex-col gap-4 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
               <div className="font-semibold text-slate-900 dark:text-white">
                 BridgeWorks Property Ops
               </div>
               <div className="flex flex-wrap gap-4">
-                <span>Privacy</span>
-                <span>Security</span>
-                <span>Support</span>
+                <Link
+                  href="/privacy"
+                  className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="/security"
+                  className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
+                >
+                  Security
+                </Link>
+                <Link
+                  href="/support"
+                  className="font-semibold text-slate-900 hover:text-teal-700 dark:text-white dark:hover:text-teal-300"
+                >
+                  Support
+                </Link>
               </div>
             </div>
             <div className="mt-6 text-xs text-slate-500 dark:text-slate-400">

@@ -16,6 +16,18 @@ export default function Page() {
             We respect your privacy. This page will outline how BridgeWorks PM
             collects, uses, and protects your data.
           </p>
+
+          <div className="mt-8">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              What to expect
+            </h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-300">
+              <li>Only collect data needed to run the platform</li>
+              <li>Use data to deliver workflows, notifications, and support</li>
+              <li>Protect data with access controls and operational safeguards</li>
+              <li>Provide a path to request help with privacy questions</li>
+            </ul>
+          </div>
         </div>
       </section>
     </main>

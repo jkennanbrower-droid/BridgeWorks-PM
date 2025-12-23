@@ -1,15 +1,26 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import data from "@emoji-mart/data";
+import Picker from "@emoji-mart/react";
+import { useDropzone } from "react-dropzone";
 
 import {
   ThreadDetailsPanel,
   type ThreadDetailsPanelData,
 } from "./messages/ThreadDetailsPanel";
+
+import { useMessagingClient } from "../../messaging/useMessagingClient";
+import type {
+  AuditEvent,
+  Message,
+  MessagingChannel,
+  SortKey,
+  Thread,
+  ThreadPriority,
+  ThreadQuery,
+  ThreadStatus,
+  ViewerContext,
+} from "../../messaging/types";
 
 function SearchIcon() {
   return (
@@ -26,21 +37,6 @@ function SearchIcon() {
         strokeLinejoin="round"
         d="m21 21-4.3-4.3M10.8 18.2a7.4 7.4 0 1 1 0-14.8 7.4 7.4 0 0 1 0 14.8Z"
       />
-    </svg>
-  );
-}
-
-function DotsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="currentColor"
-    >
-      <circle cx="6" cy="12" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="18" cy="12" r="1.6" />
     </svg>
   );
 }
@@ -74,206 +70,166 @@ function ChevronDownIcon({ className }: { className?: string }) {
       stroke="currentColor"
       strokeWidth="2"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m6 9 6 6 6-6"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
     </svg>
   );
 }
 
-type ThreadFilter = "all" | "groups" | "unread" | "flagged";
-type ThreadSort = "mostRecent" | "leastRecent" | "unreadFirst" | "flaggedFirst";
+function formatTimestampShort(iso: string) {
+  const date = new Date(iso);
+  const ms = date.getTime();
+  if (Number.isNaN(ms)) return "--";
+  const withinDay = Math.abs(Date.now() - ms) < 24 * 60 * 60 * 1000;
+  if (withinDay) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
-type ConversationSide = "tenant" | "you";
-type ConversationMessage = {
-  id: string;
-  side: ConversationSide;
-  minutesAgo: number;
-  content: ReactNode;
-};
+function dateInputToIso(value: string, endOfDay?: boolean) {
+  if (!value) return undefined;
+  const date = new Date(value + "T00:00:00");
+  if (Number.isNaN(date.getTime())) return undefined;
+  if (endOfDay) date.setHours(23, 59, 59, 999);
+  return date.toISOString();
+}
 
-function ThreadFilters({
-  value,
-  onChange,
-  condensed,
-}: {
-  value: ThreadFilter;
-  onChange: (value: ThreadFilter) => void;
-  condensed?: boolean;
-}) {
-  const items: { value: ThreadFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "groups", label: "Groups" },
-    { value: "unread", label: "Unread" },
-    { value: "flagged", label: "Flagged" },
-  ];
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
+function findMatches(text: string, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+  const re = new RegExp(escapeRegExp(q), "gi");
+  const matches: Array<{ start: number; end: number }> = [];
+  for (;;) {
+    const next = re.exec(text);
+    if (!next) break;
+    matches.push({ start: next.index, end: next.index + next[0].length });
+    if (next.index === re.lastIndex) re.lastIndex += 1;
+    if (matches.length > 500) break;
+  }
+  return matches;
+}
+
+function Pill({ children }: { children: string }) {
   return (
-    <nav
-      aria-label="Message filters"
-      className="flex items-center gap-x-4 whitespace-nowrap"
-    >
-      {items.map((item) => {
-        const active = item.value === value;
-        const hiddenWhenCondensed =
-          condensed && item.value !== "all" ? "xl:hidden" : "";
-        return (
-          <div
-            key={item.value}
-            className={`flex items-center ${hiddenWhenCondensed}`}
-          >
-            <button
-              type="button"
-              aria-current={active ? "page" : undefined}
-              className={`text-sm font-semibold transition ${
-                active
-                  ? "text-slate-900"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-              onClick={() => onChange(item.value)}
-            >
-              {item.label}
-            </button>
-          </div>
-        );
-      })}
-    </nav>
+    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+      {children}
+    </span>
   );
 }
 
-type MessageThread = {
-  id: string;
-  name: string;
-  preview: string;
-  minutesAgo: number;
-  unread?: boolean;
-  flagged?: boolean;
-  group?: boolean;
-  avatarTone: "slate" | "blue" | "emerald";
-};
-
-const THREADS: MessageThread[] = [];
-
-const THREADS_MOCK: MessageThread[] = [
-  {
-    id: "anna",
-    name: "Anna Williams",
-    preview: "Great, thank you!",
-    minutesAgo: 0,
-    unread: false,
-    avatarTone: "emerald",
-  },
-  {
-    id: "robert",
-    name: "Robert Mitchell",
-    preview: "David replied to the ticket…",
-    minutesAgo: 120,
-    unread: true,
-    flagged: true,
-    avatarTone: "blue",
-  },
-  {
-    id: "team",
-    name: "Team Chat",
-    preview: "Check out the new process for handling…",
-    minutesAgo: 3 * 24 * 60,
-    unread: false,
-    group: true,
-    avatarTone: "slate",
-  },
-  {
-    id: "becky",
-    name: "Becky Sanders",
-    preview: "Thanks for the update, Carlos.",
-    minutesAgo: 5 * 24 * 60,
-    unread: false,
-    avatarTone: "slate",
-  },
-  {
-    id: "carlos",
-    name: "Carlos Munoz",
-    preview: "I received the checklist, I’ll take care of…",
-    minutesAgo: 8 * 24 * 60,
-    unread: false,
-    avatarTone: "slate",
-  },
-  {
-    id: "ashley",
-    name: "Ashley Johnson",
-    preview: "Upload complete. All documents…",
-    minutesAgo: 14 * 24 * 60,
-    unread: false,
-    flagged: true,
-    avatarTone: "slate",
-  },
-];
-
-function formatThreadTime(minutesAgo: number) {
-  if (minutesAgo <= 0) return "Just now";
-  if (minutesAgo < 60) return `${minutesAgo}m ago`;
-  const hours = Math.floor(minutesAgo / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} days ago`;
-}
-
-function Avatar({
-  initials,
-  tone,
-  online,
-}: {
-  initials: string;
-  tone: MessageThread["avatarTone"];
-  online?: boolean;
-}) {
-  const toneClasses =
-    tone === "emerald"
-      ? "bg-emerald-500/15 text-emerald-700 ring-emerald-500/25"
-      : tone === "blue"
-        ? "bg-sky-500/15 text-sky-700 ring-sky-500/25"
-        : "bg-slate-500/15 text-slate-700 ring-slate-500/25";
-
+function SlaDot({ slaDueAt }: { slaDueAt?: string }) {
+  if (!slaDueAt) return <span className="h-2 w-2" aria-hidden="true" />;
+  const due = new Date(slaDueAt).getTime();
+  if (Number.isNaN(due)) return <span className="h-2 w-2" aria-hidden="true" />;
+  const minutes = Math.round((due - Date.now()) / (60 * 1000));
+  const danger = minutes <= 60;
+  const overdue = minutes < 0;
   return (
-    <div className="relative">
-      <div
-        className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ${toneClasses}`}
-      >
-        <span className="text-xs font-semibold">{initials}</span>
-      </div>
-      {online ? (
-        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
-      ) : null}
-    </div>
+    <span
+      title={overdue ? "SLA overdue" : danger ? "SLA due soon" : "SLA"}
+      className={`h-2.5 w-2.5 rounded-full ${
+        overdue ? "bg-rose-500" : danger ? "bg-amber-500" : "bg-emerald-500"
+      }`}
+      aria-hidden="true"
+    />
   );
 }
 
-function Segmented({
-  value,
-  onChange,
-  items,
+function MessageBubble({
+  mine,
+  senderLabel,
+  createdAt,
+  channel,
+  body,
+  matches,
+  matchIndexOffset,
+  activeMatchIndex,
+  attachmentsCount,
+  scheduledFor,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  items: { value: string; label: string }[];
+  mine: boolean;
+  senderLabel: string;
+  createdAt: string;
+  channel: MessagingChannel;
+  body: string;
+  matches: Array<{ start: number; end: number }>;
+  matchIndexOffset: number;
+  activeMatchIndex: number;
+  attachmentsCount: number;
+  scheduledFor?: string;
 }) {
+  const parts: Array<{ text: string; highlight?: boolean; matchIndex?: number }> =
+    matches.length === 0 ? [{ text: body }] : [];
+
+  if (matches.length) {
+    let cursor = 0;
+    matches.forEach((m, i) => {
+      if (m.start > cursor) parts.push({ text: body.slice(cursor, m.start) });
+      parts.push({
+        text: body.slice(m.start, m.end),
+        highlight: true,
+        matchIndex: matchIndexOffset + i,
+      });
+      cursor = m.end;
+    });
+    if (cursor < body.length) parts.push({ text: body.slice(cursor) });
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-1 rounded-full bg-slate-100 p-1">
-      {items.map((item) => (
-        <button
-          key={item.value}
-          type="button"
-          onClick={() => onChange(item.value)}
-          className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-            item.value === value
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-600 hover:text-slate-800"
+    <div className={`flex gap-3 ${mine ? "justify-end" : "justify-start"}`}>
+      <div className={`flex max-w-[760px] flex-col ${mine ? "items-end" : "items-start"}`}>
+        <div
+          className={`break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
+            mine ? "border border-slate-200 bg-white" : "bg-slate-100"
           }`}
         >
-          {item.label}
-        </button>
-      ))}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
+            <span>{senderLabel}</span>
+            <span className="text-slate-300">·</span>
+            <span className="uppercase">{channel}</span>
+            {scheduledFor ? (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>Scheduled</span>
+              </>
+            ) : null}
+            {attachmentsCount ? (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>
+                  {attachmentsCount} file{attachmentsCount === 1 ? "" : "s"}
+                </span>
+              </>
+            ) : null}
+          </div>
+          <div className="mt-2 whitespace-pre-wrap leading-6 text-slate-800">
+            {parts.map((p, i) =>
+              p.highlight ? (
+                <mark
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={i}
+                  data-match-index={p.matchIndex}
+                  className={`rounded px-0.5 ${
+                    p.matchIndex === activeMatchIndex
+                      ? "bg-amber-200 ring-2 ring-amber-300"
+                      : "bg-amber-100"
+                  }`}
+                >
+                  {p.text}
+                </mark>
+              ) : (
+                // eslint-disable-next-line react/no-array-index-key
+                <span key={i}>{p.text}</span>
+              ),
+            )}
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-slate-400">{formatTimestampShort(createdAt)}</p>
+      </div>
     </div>
   );
 }
@@ -286,76 +242,76 @@ export function MessagesModule({
   isStaffView?: boolean;
 }) {
   const messagesUiStorageKey = `bw.messages.ui.v1.${appId}`;
-  const [activeFilter, setActiveFilter] = useState<ThreadFilter>("all");
-  const [activeSort, setActiveSort] = useState<ThreadSort>("mostRecent");
-  const activeThread =
-    THREADS[0] ??
-    ({
-      id: "",
-      name: "Select a thread",
-      preview: "",
-      minutesAgo: 0,
-      avatarTone: "slate",
-    } satisfies MessageThread);
+
+  const viewer = useMemo<ViewerContext>(
+    () => ({
+      appId: appId || (isStaffView ? "staff" : "user"),
+      orgId: "demo-org-1",
+      actorId: isStaffView ? "demo-staff-1" : "demo-user-1",
+      roleHint: isStaffView ? "staff" : "tenant",
+      isStaffView,
+      // TODO (Prompt 2): replace from demo session manager.
+    }),
+    [appId, isStaffView],
+  );
+
+  const client = useMessagingClient(viewer);
+
   const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
+
+  const [query, setQuery] = useState<ThreadQuery>({
+    tab: "all",
+    sortKey: "updated_desc",
+  });
+
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [allThreads, setAllThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const activeThread = useMemo(
+    () => (activeThreadId ? allThreads.find((t) => t.id === activeThreadId) ?? null : null),
+    [activeThreadId, allThreads],
+  );
+
+  const [messages, setMessages] = useState<Message[]>([]);
+
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const [threadListHasMore, setThreadListHasMore] = useState(false);
   const [messageListHasMore, setMessageListHasMore] = useState(false);
 
-  // Keep closed by default (no persistence yet).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem(messagesUiStorageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<{
-        activeFilter: ThreadFilter;
-        activeSort: ThreadSort;
-        threadDetailsOpen: boolean;
-      }>;
-      if (parsed.activeFilter) setActiveFilter(parsed.activeFilter);
-      if (parsed.activeSort) setActiveSort(parsed.activeSort);
-      if (typeof parsed.threadDetailsOpen === "boolean") {
-        setThreadDetailsOpen(parsed.threadDetailsOpen);
-      }
-    } catch {
-      // ignore storage errors
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [composerBody, setComposerBody] = useState("");
+  const [composerChannel, setComposerChannel] = useState<MessagingChannel>("portal");
+  const [composerFiles, setComposerFiles] = useState<File[]>([]);
+  const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
+  const [composerCannedOpen, setComposerCannedOpen] = useState(false);
+  const [composerScheduleOpen, setComposerScheduleOpen] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState<string>("");
+  const [inThreadSearch, setInThreadSearch] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(
-        messagesUiStorageKey,
-        JSON.stringify({
-          version: 1,
-          activeFilter,
-          activeSort,
-          threadDetailsOpen,
-        }),
-      );
-    } catch {
-      // ignore storage errors
-    }
-  }, [activeFilter, activeSort, messagesUiStorageKey, threadDetailsOpen]);
+  const [bulkTagDraft, setBulkTagDraft] = useState("");
 
-  const threadDetailsData = useMemo<ThreadDetailsPanelData>(
-    () => ({
-      title: "—",
-      status: "—",
-      priority: "—",
-      createdAtLabel: "—",
-      lastActivityAtLabel: "—",
-      linked: {},
-      participants: [],
-      attachments: [],
-      tags: { items: [] },
-    }),
+  const [newThreadOpen, setNewThreadOpen] = useState(false);
+  const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [newThreadKind, setNewThreadKind] = useState<Thread["kind"]>("direct");
+  const [newThreadChannel, setNewThreadChannel] = useState<MessagingChannel>("portal");
+  const [newThreadParticipantQuery, setNewThreadParticipantQuery] = useState("");
+  const [newThreadSelectedParticipantIds, setNewThreadSelectedParticipantIds] = useState<string[]>(
     [],
   );
+  const [newThreadUnitId, setNewThreadUnitId] = useState("");
+  const [newThreadTemplate, setNewThreadTemplate] = useState("(none)");
+  const [newThreadTags, setNewThreadTags] = useState<string[]>([]);
+  const [newThreadTagDraft, setNewThreadTagDraft] = useState("");
+
+  const statusOptions: ThreadStatus[] = ["open", "pending", "resolved", "closed"];
+  const priorityOptions: ThreadPriority[] = ["low", "normal", "high", "urgent"];
+  const channelOptions: MessagingChannel[] = ["portal", "sms", "email"];
 
   const threadDetailsDataEmpty = useMemo<ThreadDetailsPanelData>(
     () => ({
@@ -372,214 +328,373 @@ export function MessagesModule({
     [],
   );
 
-  const threadDetailsDataMock = useMemo<ThreadDetailsPanelData>(
-    () => ({
-      title: "AC not cooling - Unit 14 (tenant follow-up)",
-      status: "Open",
-      priority: "High",
-      sla: "SLA 4h",
-      createdAtLabel: "Yesterday 3:18 PM",
-      lastActivityAtLabel: "Just now",
-      channel: "SMS",
-      linked: {
-        property: { label: "Riverstone Apartments", subtext: "Property • #RS-102" },
-        unit: { label: "Unit 14", subtext: "Building A • Floor 2" },
-        resident: { label: "Anna Williams", subtext: "Tenant • Lease #L-2218" },
-      },
-      participants: [
-        { id: "p1", name: "Anna Williams", role: "Tenant", online: true },
-        { id: "p2", name: "Carlos Munoz", role: "Maintenance", online: false },
-        { id: "p3", name: "You", role: "Property Manager", online: true },
-      ],
-      attachments: [
-        {
-          id: "a1",
-          filename: "ac-video.mp4",
-          meta: "12.4 MB • Anna • 2h ago",
-          kind: "file",
-        },
-        {
-          id: "a2",
-          filename: "thermostat.jpg",
-          meta: "2.1 MB • Anna • 2h ago",
-          kind: "image",
-        },
-        {
-          id: "a3",
-          filename: "maintenance-notes.pdf",
-          meta: "320 KB • Carlos • 45m ago",
-          kind: "pdf",
-        },
-        {
-          id: "a4",
-          filename: "lease.pdf",
-          meta: "840 KB • System • 1d ago",
-          kind: "pdf",
-        },
-      ],
-      tags: {
-        items: ["HVAC", "No cooling", "Follow-up"],
-        queue: "Maintenance",
-        escalation: "Escalated",
-      },
-      routing: {
-        assignedTo: "Carlos M.",
-        queue: "Maintenance",
-        sla: "4h remaining",
-      },
-      activity: [
-        {
-          id: "e1",
-          title: "Thread created",
-          actor: "Anna",
-          timestampLabel: "Yesterday 3:18 PM",
-        },
-        {
-          id: "e2",
-          title: "Assigned to Carlos M.",
-          actor: "You",
-          timestampLabel: "Yesterday 3:25 PM",
-          linkLabel: "View",
-        },
-        {
-          id: "e3",
-          title: "Attachment added",
-          actor: "Anna",
-          timestampLabel: "2h ago",
-        },
-      ],
-      compliance: { retention: "Retention: 7 years", logged: "Logged" },
-    }),
-    [],
-  );
+  const auditEvents = useMemo<AuditEvent[]>(() => {
+    if (!activeThread) return [];
+    const anyClient = client as unknown as { getAudit?: (threadId: string) => AuditEvent[] };
+    return anyClient.getAudit?.(activeThread.id) ?? [];
+  }, [activeThread, client]);
 
-  const conversationMessages = useMemo<ConversationMessage[]>(
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    allThreads.forEach((t) => {
+      if (t.assigneeId && t.assigneeLabel) map.set(t.assigneeId, t.assigneeLabel);
+    });
+    return [...map.entries()].map(([id, label]) => ({ id, label }));
+  }, [allThreads]);
+
+  const participants = useMemo(() => {
+    const anyClient = client as unknown as { getParticipants?: () => import("../../messaging/types").Participant[] };
+    return anyClient.getParticipants?.() ?? [];
+  }, [client]);
+
+  const propertyOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    allThreads.forEach((t) => {
+      if (t.propertyId) map.set(t.propertyId, t.propertyLabel ?? t.propertyId);
+    });
+    return [...map.entries()].map(([id, label]) => ({ id, label }));
+  }, [allThreads]);
+
+  const unitOptions = useMemo(() => {
+    const map = new Map<string, { label: string; propertyId?: string }>();
+    allThreads.forEach((t) => {
+      if (t.unitId) map.set(t.unitId, { label: t.unitLabel ?? t.unitId, propertyId: t.propertyId });
+    });
+    return [...map.entries()].map(([id, meta]) => ({ id, label: meta.label, propertyId: meta.propertyId }));
+  }, [allThreads]);
+
+  const cannedResponses = useMemo(
     () => [
-      {
-        id: "m1",
-        side: "tenant",
-        minutesAgo: 120,
-        content: (
-          <>
-            Hi, the AC unit in our apartment stopped working yesterday. Can you please
-            send someone to have a look at it?
-          </>
-        ),
-      },
-      {
-        id: "m2",
-        side: "tenant",
-        minutesAgo: 10,
-        content: <>When do you think a maintenance tech would be able to come?</>,
-      },
-      {
-        id: "m3",
-        side: "you",
-        minutesAgo: 0,
-        content: (
-          <>
-            <p className="text-xs font-semibold text-slate-500">
-              You Aú BridgeWorks PM
-            </p>
-            <p className="mt-2">
-              Hello Anna, sorry to hear about AC issue.
-              <br />
-              <br />
-              I&apos;ll dispatch a maintenance tech to your unit today to inspect and repair
-              the AC. I&apos;ll let you know when they&apos;ll be there.
-            </p>
-          </>
-        ),
-      },
+      "Thanks — I’m looking into this now.",
+      "Understood. We’ll follow up shortly.",
+      "Can you confirm the best time for access?",
+      "We’ve created a work order and will keep you posted here.",
+      "Appreciate the details — thank you.",
     ],
     [],
   );
 
-  const lastMessageIndexBySide = useMemo(() => {
-    const map: Record<ConversationSide, number> = { tenant: -1, you: -1 };
-    conversationMessages.forEach((message, index) => {
-      map[message.side] = index;
-    });
-    return map;
-  }, [conversationMessages]);
+  const templates = useMemo(
+    () => [
+      { id: "(none)", label: "No template" },
+      { id: "triage", label: "Maintenance triage request" },
+      { id: "billing", label: "Billing clarification" },
+      { id: "policy", label: "Policy reminder" },
+    ],
+    [],
+  );
 
-  const visibleThreads = useMemo(() => {
-    const filtered = THREADS.filter((thread) => {
-      if (activeFilter === "groups") return Boolean(thread.group);
-      if (activeFilter === "unread") return Boolean(thread.unread);
-      if (activeFilter === "flagged") return Boolean(thread.flagged);
-      return true;
-    });
+  const refreshAllThreads = useCallback(async () => {
+    const result = await client.listThreads({ tab: "all", sortKey: "updated_desc" });
+    setAllThreads(result.threads);
+  }, [client]);
 
-    const byMostRecent = (a: MessageThread, b: MessageThread) =>
-      a.minutesAgo - b.minutesAgo;
-
-    return [...filtered].sort((a, b) => {
-      if (activeSort === "leastRecent") return byMostRecent(b, a);
-      if (activeSort === "unreadFirst") {
-        const unreadDelta = Number(Boolean(b.unread)) - Number(Boolean(a.unread));
-        return unreadDelta !== 0 ? unreadDelta : byMostRecent(a, b);
-      }
-      if (activeSort === "flaggedFirst") {
-        const flaggedDelta =
-          Number(Boolean(b.flagged)) - Number(Boolean(a.flagged));
-        return flaggedDelta !== 0 ? flaggedDelta : byMostRecent(a, b);
-      }
-      return byMostRecent(a, b);
-    });
-  }, [activeFilter, activeSort]);
+  const refreshThreads = useCallback(async () => {
+    const effectiveQuery: ThreadQuery = {
+      ...query,
+      dateFrom: dateInputToIso(dateFrom) ?? query.dateFrom,
+      dateTo: dateInputToIso(dateTo, true) ?? query.dateTo,
+    };
+    const result = await client.listThreads(effectiveQuery);
+    setThreads(result.threads);
+    setSelectedThreadIds((prev) => prev.filter((id) => result.threads.some((t) => t.id === id)));
+    setActiveThreadId((prev) => prev ?? result.threads[0]?.id ?? null);
+  }, [client, dateFrom, dateTo, query]);
 
   useEffect(() => {
-    const element = threadListRef.current;
-    if (!element) return;
-
-    const update = () => {
-      const remaining =
-        element.scrollHeight - element.scrollTop - element.clientHeight;
-      setThreadListHasMore(remaining > 8);
-    };
-
-    update();
-    element.addEventListener("scroll", update, { passive: true });
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => element.removeEventListener("scroll", update);
-    }
-
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-
-    return () => {
-      element.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
-  }, [visibleThreads.length]);
+    void refreshAllThreads();
+  }, [refreshAllThreads]);
 
   useEffect(() => {
-    const element = messageListRef.current;
-    if (!element) return;
+    void refreshThreads();
+  }, [refreshThreads]);
 
-    const update = () => {
-      const remaining =
-        element.scrollHeight - element.scrollTop - element.clientHeight;
-      setMessageListHasMore(remaining > 8);
-    };
-
-    update();
-    element.addEventListener("scroll", update, { passive: true });
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => element.removeEventListener("scroll", update);
+  useEffect(() => {
+    if (!activeThreadId) {
+      setMessages([]);
+      return;
     }
+    client
+      .listMessages(activeThreadId)
+      .then(({ messages: next }) => setMessages(next))
+      .catch(() => setMessages([]));
+  }, [activeThreadId, client]);
 
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
+  useEffect(() => {
+    setComposerChannel(activeThread?.channelDefault ?? "portal");
+  }, [activeThread?.channelDefault]);
 
-    return () => {
-      element.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(messagesUiStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{
+        query: ThreadQuery;
+        dateFrom: string;
+        dateTo: string;
+        threadDetailsOpen: boolean;
+        selectMode: boolean;
+      }>;
+      if (parsed.query) setQuery(parsed.query);
+      if (typeof parsed.threadDetailsOpen === "boolean") setThreadDetailsOpen(parsed.threadDetailsOpen);
+      if (typeof parsed.selectMode === "boolean") setSelectMode(parsed.selectMode);
+      if (typeof parsed.dateFrom === "string") setDateFrom(parsed.dateFrom);
+      if (typeof parsed.dateTo === "string") setDateTo(parsed.dateTo);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        messagesUiStorageKey,
+        JSON.stringify({ version: 1, query, dateFrom, dateTo, threadDetailsOpen, selectMode }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [dateFrom, dateTo, messagesUiStorageKey, query, selectMode, threadDetailsOpen]);
+
+  const updateActiveThread = useCallback(
+    async (
+      patch: Partial<
+        Pick<
+          Thread,
+          | "status"
+          | "priority"
+          | "assigneeId"
+          | "assigneeLabel"
+          | "tags"
+          | "dueDate"
+          | "slaDueAt"
+          | "linkedWorkOrderId"
+          | "linkedTaskId"
+          | "followers"
+        >
+      >,
+    ) => {
+      if (!activeThread) return;
+      await client.updateThread(activeThread.id, patch);
+      await refreshAllThreads();
+      await refreshThreads();
+    },
+    [activeThread, client, refreshAllThreads, refreshThreads],
+  );
+
+  const applyBulk = useCallback(
+    async (
+      action:
+        | { type: "mark_resolved" }
+        | { type: "reassign"; assigneeId: string; assigneeLabel: string }
+        | { type: "add_tag"; tag: string },
+    ) => {
+      if (!selectedThreadIds.length) return;
+      await client.bulkUpdateThreads(selectedThreadIds, action);
+      setSelectedThreadIds([]);
+      await refreshAllThreads();
+      await refreshThreads();
+    },
+    [client, refreshAllThreads, refreshThreads, selectedThreadIds],
+  );
+
+  const resetNewThread = useCallback(() => {
+    setNewThreadTitle("");
+    setNewThreadKind("direct");
+    setNewThreadChannel("portal");
+    setNewThreadParticipantQuery("");
+    setNewThreadSelectedParticipantIds([]);
+    setNewThreadUnitId("");
+    setNewThreadTemplate("(none)");
+    setNewThreadTags([]);
+    setNewThreadTagDraft("");
+  }, []);
+
+  const createThread = useCallback(async () => {
+    const title = newThreadTitle.trim() || "New thread";
+    const participantIds = newThreadSelectedParticipantIds.length
+      ? newThreadSelectedParticipantIds
+      : participants.filter((p) => p.role === "tenant").slice(0, 1).map((p) => p.id);
+    const propertyId = unitOptions.find((u) => u.id === newThreadUnitId)?.propertyId;
+
+    const created = await client.createThread({
+      title,
+      kind: newThreadKind,
+      channel: newThreadChannel,
+      participantIds,
+      tags: newThreadTags,
+      propertyId,
+      unitId: newThreadUnitId || undefined,
+    });
+
+    setNewThreadOpen(false);
+    resetNewThread();
+    await refreshAllThreads();
+    await refreshThreads();
+    setActiveThreadId(created.id);
+    setThreadDetailsOpen(true);
+  }, [
+    client,
+    newThreadChannel,
+    newThreadKind,
+    newThreadSelectedParticipantIds,
+    newThreadTags,
+    newThreadTitle,
+    newThreadUnitId,
+    participants,
+    refreshAllThreads,
+    refreshThreads,
+    resetNewThread,
+    unitOptions,
+  ]);
+
+  const threadDetailsData = useMemo<ThreadDetailsPanelData>(() => {
+    if (!activeThread) return threadDetailsDataEmpty;
+    return {
+      title: activeThread.title,
+      status: activeThread.status,
+      priority: activeThread.priority,
+      createdAtLabel: formatTimestampShort(activeThread.createdAt),
+      lastActivityAtLabel: formatTimestampShort(activeThread.updatedAt),
+      channel: activeThread.channelDefault.toUpperCase(),
+      linked: {
+        property: activeThread.propertyLabel
+          ? { label: activeThread.propertyLabel, subtext: activeThread.propertyId }
+          : undefined,
+        unit: activeThread.unitLabel
+          ? { label: activeThread.unitLabel, subtext: activeThread.unitId }
+          : undefined,
+        workOrder: activeThread.linkedWorkOrderId
+          ? { label: activeThread.linkedWorkOrderId, subtext: "Work order" }
+          : undefined,
+      },
+      participants: activeThread.participants.map((p) => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        online: p.presence === "online",
+      })),
+      attachments: messages.flatMap((m) =>
+        (m.attachments ?? []).map((a) => ({
+          id: a.id,
+          filename: a.fileName,
+          meta: `${Math.round(a.sizeBytes / 1024)} KB`,
+          kind: a.mimeType.startsWith("image/")
+            ? "image"
+            : a.mimeType.includes("pdf")
+              ? "pdf"
+              : "file",
+        })),
+      ),
+      tags: { items: activeThread.tags ?? [] },
+      activity: auditEvents.slice(-12).reverse().map((e) => ({
+        id: e.id,
+        title: e.type,
+        actor: e.actorLabel,
+        timestampLabel: formatTimestampShort(e.createdAt),
+      })),
+    };
+  }, [activeThread, auditEvents, messages, threadDetailsDataEmpty]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    noClick: true,
+    onDropAccepted: (accepted) => setComposerFiles((prev) => [...prev, ...accepted]),
+  });
+
+  const updateThreadListHasMore = useCallback(() => {
+    const el = threadListRef.current;
+    if (!el) return;
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setThreadListHasMore(remaining > 8);
+  }, []);
+
+  const updateMessageListHasMore = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setMessageListHasMore(remaining > 8);
+  }, []);
+
+  useEffect(() => {
+    const el = threadListRef.current;
+    if (!el) return;
+    updateThreadListHasMore();
+    el.addEventListener("scroll", updateThreadListHasMore, { passive: true });
+    return () => el.removeEventListener("scroll", updateThreadListHasMore);
+  }, [updateThreadListHasMore, threads.length]);
+
+  useEffect(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    updateMessageListHasMore();
+    el.addEventListener("scroll", updateMessageListHasMore, { passive: true });
+    return () => el.removeEventListener("scroll", updateMessageListHasMore);
+  }, [updateMessageListHasMore, messages.length]);
+
+  const sendMessage = useCallback(async () => {
+    if (!activeThread) return;
+    const body = composerBody.trim();
+    if (!body && composerFiles.length === 0) return;
+    await client.sendMessage(activeThread.id, {
+      body: body || "(attachment)",
+      channel: composerChannel,
+      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+      attachments: composerFiles.map((f) => ({
+        fileName: f.name,
+        mimeType: f.type || "application/octet-stream",
+        sizeBytes: f.size,
+      })),
+    });
+    setComposerBody("");
+    setComposerFiles([]);
+    setScheduledFor("");
+    setComposerScheduleOpen(false);
+    await refreshAllThreads();
+    await refreshThreads();
+    const { messages: next } = await client.listMessages(activeThread.id);
+    setMessages(next);
+  }, [
+    activeThread,
+    client,
+    composerBody,
+    composerChannel,
+    composerFiles,
+    refreshAllThreads,
+    refreshThreads,
+    scheduledFor,
+  ]);
+
+  const matchData = useMemo(() => {
+    const q = inThreadSearch.trim();
+    if (!q) return { matchCount: 0, byMessageId: new Map<string, Array<{ start: number; end: number }>>() };
+    const byMessageId = new Map<string, Array<{ start: number; end: number }>>();
+    let count = 0;
+    messages.forEach((m) => {
+      const matches = findMatches(m.body, q);
+      if (matches.length) {
+        byMessageId.set(m.id, matches);
+        count += matches.length;
+      }
+    });
+    return { matchCount: count, byMessageId };
+  }, [inThreadSearch, messages]);
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [inThreadSearch]);
+
+  useEffect(() => {
+    const root = messageListRef.current;
+    if (!root) return;
+    const el = root.querySelector(
+      `[data-match-index="${activeMatchIndex}"]`,
+    ) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeMatchIndex]);
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-white">
@@ -592,27 +707,49 @@ export function MessagesModule({
           }`}
         >
           <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white">
-            <div className="border-b border-slate-200 bg-white/95 h-16 px-4 backdrop-blur">
+            <div className="h-16 border-b border-slate-200 bg-white/95 px-4 backdrop-blur">
               <div className="flex h-full items-center gap-3">
-                <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  <ThreadFilters
-                    value={activeFilter}
-                    onChange={setActiveFilter}
-                    condensed={threadDetailsOpen}
-                  />
-                </div>
+                <nav className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {(["all", "groups", "unread", "flagged"] as const).map((tab) => {
+                    const active = (query.tab ?? "all") === tab;
+                    return (
+                      <button
+                        key={tab}
+                        type="button"
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => setQuery((q) => ({ ...q, tab }))}
+                        className={`text-sm font-semibold transition ${
+                          active
+                            ? "text-slate-900"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        {tab === "all"
+                          ? "All"
+                          : tab === "groups"
+                            ? "Groups"
+                            : tab === "unread"
+                              ? "Unread"
+                              : "Flagged"}
+                      </button>
+                    );
+                  })}
+                </nav>
                 <select
-                  value={activeSort}
-                  onChange={(event) =>
-                    setActiveSort(event.target.value as ThreadSort)
+                  value={query.sortKey ?? "updated_desc"}
+                  onChange={(e) =>
+                    setQuery((q) => ({
+                      ...q,
+                      sortKey: e.target.value as SortKey,
+                    }))
                   }
-                  className="shrink-0 h-10 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-slate-300"
+                  className="h-10 shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-slate-300"
                   aria-label="Sort threads"
                 >
-                  <option value="mostRecent">Most recent</option>
-                  <option value="leastRecent">Least recent</option>
-                  <option value="unreadFirst">Unread first</option>
-                  <option value="flaggedFirst">Flagged first</option>
+                  <option value="updated_desc">Newest</option>
+                  <option value="updated_asc">Oldest</option>
+                  <option value="sla_asc">SLA due</option>
+                  <option value="priority_desc">Priority</option>
                 </select>
               </div>
             </div>
@@ -623,84 +760,329 @@ export function MessagesModule({
                   <SearchIcon />
                   <input
                     type="search"
-                    placeholder="Search messages"
-                    aria-label="Search messages"
-                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                    placeholder="Search threads"
+                    aria-label="Search threads"
+                    value={query.text ?? ""}
+                    onChange={(e) => setQuery((q) => ({ ...q, text: e.target.value }))}
+                    className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
                   />
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  onClick={() => setSelectMode((v) => !v)}
+                  className={`h-10 rounded-xl border px-3 text-sm font-semibold shadow-sm transition ${
+                    selectMode
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  Select
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewThreadOpen(true)}
+                  className="h-10 rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
                 >
                   New Thread
                 </button>
               </div>
-            </div>
 
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                    Status{query.status?.length ? ` (${query.status.length})` : ""}
+                  </summary>
+                  <div className="absolute z-20 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    {statusOptions.map((s) => {
+                      const checked = query.status?.includes(s) ?? false;
+                      return (
+                        <label key={s} className="flex items-center gap-2 py-1 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setQuery((q) => {
+                                const current = new Set(q.status ?? []);
+                                if (current.has(s)) current.delete(s);
+                                else current.add(s);
+                                return { ...q, status: current.size ? [...current] : undefined };
+                              })
+                            }
+                          />
+                          {s}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                    Channel{query.channel?.length ? ` (${query.channel.length})` : ""}
+                  </summary>
+                  <div className="absolute z-20 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    {channelOptions.map((c) => {
+                      const checked = query.channel?.includes(c) ?? false;
+                      return (
+                        <label key={c} className="flex items-center gap-2 py-1 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setQuery((q) => {
+                                const current = new Set(q.channel ?? []);
+                                if (current.has(c)) current.delete(c);
+                                else current.add(c);
+                                return { ...q, channel: current.size ? [...current] : undefined };
+                              })
+                            }
+                          />
+                          {c}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                    Priority{query.priority?.length ? ` (${query.priority.length})` : ""}
+                  </summary>
+                  <div className="absolute z-20 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    {priorityOptions.map((p) => {
+                      const checked = query.priority?.includes(p) ?? false;
+                      return (
+                        <label key={p} className="flex items-center gap-2 py-1 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setQuery((q) => {
+                                const current = new Set(q.priority ?? []);
+                                if (current.has(p)) current.delete(p);
+                                else current.add(p);
+                                return { ...q, priority: current.size ? [...current] : undefined };
+                              })
+                            }
+                          />
+                          {p}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+
+                <select
+                  value={query.propertyId?.[0] ?? ""}
+                  onChange={(e) =>
+                    setQuery((q) => ({
+                      ...q,
+                      propertyId: e.target.value ? [e.target.value] : undefined,
+                    }))
+                  }
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                >
+                  <option value="">Property</option>
+                  {propertyOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={query.unitId?.[0] ?? ""}
+                  onChange={(e) =>
+                    setQuery((q) => ({
+                      ...q,
+                      unitId: e.target.value ? [e.target.value] : undefined,
+                    }))
+                  }
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                >
+                  <option value="">Unit</option>
+                  {unitOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={query.assigneeId?.[0] ?? ""}
+                  onChange={(e) =>
+                    setQuery((q) => ({
+                      ...q,
+                      assigneeId: e.target.value ? [e.target.value] : undefined,
+                    }))
+                  }
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                >
+                  <option value="">Assignee</option>
+                  <option value="__unassigned__">Unassigned</option>
+                  {assigneeOptions.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                  aria-label="Updated from"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                  aria-label="Updated to"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery({ tab: query.tab ?? "all", sortKey: query.sortKey ?? "updated_desc" });
+                    setDateFrom("");
+                    setDateTo("");
+                  }}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {selectedThreadIds.length ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <span className="text-xs font-semibold text-slate-700">
+                    {selectedThreadIds.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void applyBulk({ type: "mark_resolved" })}
+                    className="h-9 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  >
+                    Mark resolved
+                  </button>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (!id) return;
+                      const label = assigneeOptions.find((a) => a.id === id)?.label;
+                      if (!label) return;
+                      void applyBulk({ type: "reassign", assigneeId: id, assigneeLabel: label });
+                      e.target.value = "";
+                    }}
+                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                  >
+                    <option value="">Reassign…</option>
+                    {assigneeOptions.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={bulkTagDraft}
+                      onChange={(e) => setBulkTagDraft(e.target.value)}
+                      placeholder="Add tag"
+                      className="h-9 w-36 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const value = bulkTagDraft.trim();
+                        if (!value) return;
+                        setBulkTagDraft("");
+                        void applyBulk({ type: "add_tag", tag: value });
+                      }}
+                      className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedThreadIds([])}
+                    className="ml-auto h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <div className="relative min-h-0 flex-1">
               <div
                 ref={threadListRef}
-                className="min-h-0 h-full overflow-y-auto px-2 pb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="min-h-0 h-full overflow-y-auto bg-white [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
-                {visibleThreads.length === 0 ? (
-                  <div className="px-4 py-8 text-center">
-                    <p className="text-sm font-semibold text-slate-900">
-                      No threads
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Threads will appear here once loaded.
-                    </p>
-                  </div>
-                ) : null}
-                {visibleThreads.map((thread) => {
-                  const initials = thread.name
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase();
-                  const active = thread.id === activeThread.id;
-                  return (
+                <div className="divide-y divide-slate-100">
+                  {threads.map((thread) => (
                     <button
                       key={thread.id}
                       type="button"
-                      className={`flex w-full items-center gap-4 rounded-2xl px-4 py-5 text-left transition ${
-                        active ? "bg-slate-100" : "hover:bg-slate-50"
+                      onClick={() => {
+                        setActiveThreadId(thread.id);
+                        setThreadDetailsOpen(true);
+                        setInThreadSearch("");
+                      }}
+                      className={`flex w-full items-start gap-3 px-4 py-4 text-left transition ${
+                        thread.id === activeThreadId ? "bg-slate-50" : "hover:bg-slate-50"
                       }`}
                     >
-                      <Avatar
-                        initials={initials}
-                        tone={thread.avatarTone}
-                        online={thread.id === "anna"}
-                      />
+                      {selectMode ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedThreadIds.includes(thread.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() =>
+                            setSelectedThreadIds((prev) =>
+                              prev.includes(thread.id)
+                                ? prev.filter((id) => id !== thread.id)
+                                : [...prev, thread.id],
+                            )
+                          }
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                          aria-label="Select thread"
+                        />
+                      ) : null}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-900">
-                          {thread.name}
+                          {thread.title}
                         </p>
-                        <p
-                          className={`mt-0.5 truncate text-sm ${
-                            thread.unread ? "text-slate-700" : "text-slate-500"
-                          }`}
-                        >
-                          {thread.preview}
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {[thread.propertyLabel, thread.unitLabel].filter(Boolean).join(" · ") || "—"}
                         </p>
+                        <p className="mt-1 truncate text-sm text-slate-600">
+                          {thread.lastMessagePreview ?? ""}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Pill>{thread.assigneeLabel || "Unassigned"}</Pill>
+                        </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <p className="whitespace-nowrap text-xs text-slate-500">
-                          {formatThreadTime(thread.minutesAgo)}
-                        </p>
-                        {thread.unread ? (
-                          <span
-                            className="h-2 w-2 rounded-full bg-sky-500"
-                            aria-hidden="true"
-                          />
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <SlaDot slaDueAt={thread.slaDueAt} />
+                          <p className="whitespace-nowrap text-xs text-slate-500">
+                            {formatTimestampShort(thread.updatedAt)}
+                          </p>
+                        </div>
+                        {(thread.unreadCount ?? 0) > 0 ? (
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white">
+                            {thread.unreadCount}
+                          </span>
                         ) : (
-                          <span className="h-2 w-2" aria-hidden="true" />
+                          <span className="h-5 min-w-5" aria-hidden="true" />
                         )}
                       </div>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
               {threadListHasMore ? (
                 <button
@@ -713,7 +1095,7 @@ export function MessagesModule({
                   }
                   className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
                 >
-                  More messages
+                  More threads
                   <ChevronDownIcon className="h-4 w-4" />
                 </button>
               ) : null}
@@ -721,174 +1103,224 @@ export function MessagesModule({
           </aside>
 
           <div className="flex min-w-0 flex-col overflow-hidden bg-white">
-          <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <Avatar
-                initials={
-                  activeThread.id
-                    ? activeThread.name
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase()
-                    : "--"
-                }
-                tone={activeThread.avatarTone}
-              />
+            {/* Conversation header (enhanced in next patch) */}
+            <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">
-                  {activeThread.id ? activeThread.name : "No thread selected"}
+                  {activeThread?.title ?? "Select a thread"}
                 </p>
-                <p className="truncate text-xs text-slate-500">Tenant · Unit 14</p>
+                <p className="mt-1 truncate text-xs text-slate-500">
+                  {activeThread
+                    ? [activeThread.propertyLabel, activeThread.unitLabel].filter(Boolean).join(" · ")
+                    : "—"}
+                </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setThreadDetailsOpen((value) => !value)}
+                onClick={() => setThreadDetailsOpen((v) => !v)}
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                disabled={!activeThread}
               >
-                <span className="text-xs font-semibold">ⓘ</span>
+                <span className="text-xs font-semibold">i</span>
                 <span className="hidden sm:inline">Details</span>
               </button>
-              <button
-                type="button"
-                aria-label="Conversation actions"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300"
-              >
-                <DotsIcon />
-              </button>
             </div>
-          </div>
 
-          <div className="relative min-h-0 flex-1">
-            <div
-              ref={messageListRef}
-              className="min-h-0 h-full space-y-4 overflow-y-auto overflow-x-hidden px-6 py-4 pb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <div className="flex h-full min-h-[220px] items-center justify-center">
-                <div className="max-w-sm text-center">
-                  <p className="text-sm font-semibold text-slate-900">
-                    No messages yet
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Start the conversation by sending a message.
-                  </p>
-                </div>
-              </div>
-              <div className="hidden">
-                <Avatar initials="AW" tone="emerald" online />
-                <div className="flex max-w-[760px] flex-col">
-                  <button
-                    type="button"
-                    onClick={() => {}}
-                    className="text-left"
-                  >
-                    <div className="break-words rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-800">
-                      Hi, the AC unit in our apartment stopped working yesterday. Can you please
-                      send someone to have a look at it?
-                    </div>
-                  </button>
-                  {false ? (
-                    <p className="mt-1 text-xs text-slate-400">2h ago</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="hidden">
-                <Avatar initials="AW" tone="emerald" online />
-                <div className="flex max-w-[760px] flex-col">
-                  <div className="break-words rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-800">
-                    When do you think a maintenance tech would be able to come?
+            <div className="relative min-h-0 flex-1" {...getRootProps()}>
+              <input {...getInputProps()} />
+              {isDragActive ? (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-900/10">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm">
+                    Drop files to attach
                   </div>
-                  <p className="mt-1 text-xs text-slate-400">10m ago</p>
                 </div>
+              ) : null}
+              <div
+                ref={messageListRef}
+                className="min-h-0 h-full space-y-4 overflow-y-auto overflow-x-hidden px-6 py-4 pb-14 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {!activeThread ? (
+                  <div className="flex h-full min-h-[220px] items-center justify-center">
+                    <div className="max-w-sm text-center">
+                      <p className="text-sm font-semibold text-slate-900">No thread selected</p>
+                      <p className="mt-1 text-sm text-slate-500">Select a thread to view messages.</p>
+                    </div>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex h-full min-h-[220px] items-center justify-center">
+                    <div className="max-w-sm text-center">
+                      <p className="text-sm font-semibold text-slate-900">No messages yet</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Start the conversation by sending a message.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`flex ${m.senderId === viewer.actorId ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className="max-w-[760px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
+                        <p className="text-xs font-semibold text-slate-500">
+                          {m.senderLabel} · {m.channel.toUpperCase()}
+                          {m.scheduledFor ? " · Scheduled" : ""}
+                        </p>
+                        <p className="mt-2 whitespace-pre-wrap leading-6">{m.body}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {messageListHasMore ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    messageListRef.current?.scrollBy({
+                      top: messageListRef.current.clientHeight * 0.9,
+                      behavior: "smooth",
+                    })
+                  }
+                  className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
+                >
+                  More messages
+                  <ChevronDownIcon className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="border-t border-slate-200 bg-white px-6 py-3">
+              <div className="flex items-center gap-3">
+                <select
+                  value={composerChannel}
+                  onChange={(e) => setComposerChannel(e.target.value as MessagingChannel)}
+                  className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  aria-label="Message channel"
+                  disabled={!activeThread}
+                >
+                  {channelOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-sm">
+                  <input
+                    type="text"
+                    placeholder="Write a reply..."
+                    aria-label="Write a reply"
+                    value={composerBody}
+                    onChange={(e) => setComposerBody(e.target.value)}
+                    className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                    disabled={!activeThread}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setComposerCannedOpen((v) => !v)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Canned
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerEmojiOpen((v) => !v)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Emoji
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerScheduleOpen((v) => !v)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                  disabled={!activeThread}
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  aria-label="Send message"
+                  onClick={() => void sendMessage()}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
+                  disabled={!activeThread}
+                >
+                  <PaperPlaneIcon />
+                  Send
+                </button>
               </div>
 
-            <div className="hidden">
-              <div className="flex max-w-[760px] flex-col items-end">
-                <div className="break-words rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
-                  <p className="text-xs font-semibold text-slate-500">
-                    You · BridgeWorks PM
-                  </p>
-                  <p className="mt-2">
-                    Hello Anna, sorry to hear about AC issue.
-                    <br />
-                    <br />
-                    I&apos;ll dispatch a maintenance tech to your unit today to inspect and
-                    repair the AC. I&apos;ll let you know when they&apos;ll be there.
-                  </p>
+              {composerEmojiOpen ? (
+                <div className="relative">
+                  <div className="absolute right-0 top-2 z-20 rounded-2xl border border-slate-200 bg-white shadow-xl">
+                    <Picker
+                      data={data}
+                      onEmojiSelect={(emoji: { native?: string }) => {
+                        if (!emoji.native) return;
+                        setComposerBody((b) => b + emoji.native);
+                        setComposerEmojiOpen(false);
+                      }}
+                      theme="light"
+                      previewPosition="none"
+                      skinTonePosition="none"
+                    />
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Just now</p>
-              </div>
+              ) : null}
+
+              {/* canned + attachments + in-thread search + scheduled send + new thread modal in next patches */}
+              {composerCannedOpen ? (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  Canned responses (next patch).
+                </div>
+              ) : null}
+              {composerScheduleOpen ? (
+                <div className="mt-3 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <label className="text-xs font-semibold text-slate-700">Send later</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledFor}
+                    onChange={(e) => setScheduledFor(e.target.value)}
+                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
+                  />
+                </div>
+              ) : null}
             </div>
-            </div>
-            {messageListHasMore ? (
-              <button
-                type="button"
-                onClick={() =>
-                  messageListRef.current?.scrollBy({
-                    top: messageListRef.current.clientHeight * 0.9,
-                    behavior: "smooth",
-                  })
-                }
-                className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
-              >
-                More messages
-                <ChevronDownIcon className="h-4 w-4" />
-              </button>
-            ) : null}
           </div>
 
-          <div className="border-t border-slate-200 bg-white h-16 px-6">
-            <div className="flex h-full items-center gap-3">
-              <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-sm">
-                <input
-                  type="text"
-                  placeholder="Write a reply..."
-                  aria-label="Write a reply"
-                  className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                />
-              </div>
-              <button
-                type="button"
-                aria-label="Send message"
-                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                <PaperPlaneIcon />
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
           <ThreadDetailsPanel
             isOpen={threadDetailsOpen}
             onClose={() => setThreadDetailsOpen(false)}
             isStaffView={isStaffView}
-            data={threadDetailsDataEmpty}
+            data={activeThread ? threadDetailsData : threadDetailsDataEmpty}
             className="hidden xl:flex"
-          />
-      </div>
-      </div>
-      {threadDetailsOpen ? (
-        <div className="xl:hidden">
-          <button
-            type="button"
-            aria-label="Close thread details"
-            onClick={() => setThreadDetailsOpen(false)}
-            className="fixed inset-0 z-40 bg-slate-900/20"
-          />
-          <ThreadDetailsPanel
-            isOpen={threadDetailsOpen}
-            onClose={() => setThreadDetailsOpen(false)}
-            isStaffView={isStaffView}
-            data={threadDetailsDataEmpty}
-            className="fixed inset-y-0 right-0 z-50 w-[340px] max-w-[90vw] shadow-xl"
+            onUpdateThread={updateActiveThread}
+            assignees={assigneeOptions}
+            statusOptions={statusOptions}
+            priorityOptions={priorityOptions}
+            auditEvents={auditEvents}
+            threadMeta={
+              activeThread
+                ? {
+                    id: activeThread.id,
+                    linkedWorkOrderId: activeThread.linkedWorkOrderId,
+                    linkedTaskId: activeThread.linkedTaskId,
+                    dueDate: activeThread.dueDate,
+                    slaDueAt: activeThread.slaDueAt,
+                    tags: activeThread.tags ?? [],
+                    assigneeId: activeThread.assigneeId,
+                    assigneeLabel: activeThread.assigneeLabel,
+                    status: activeThread.status,
+                    priority: activeThread.priority,
+                  }
+                : undefined
+            }
           />
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

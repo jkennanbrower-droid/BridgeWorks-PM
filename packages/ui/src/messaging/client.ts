@@ -1,0 +1,67 @@
+import type {
+  Attachment,
+  Message,
+  MessagingChannel,
+  Thread,
+  ThreadKind,
+  ThreadQuery,
+} from "./types";
+
+export interface MessagingClient {
+  listThreads(query: ThreadQuery): Promise<{ threads: Thread[] }>;
+  listMessages(threadId: string): Promise<{ messages: Message[] }>;
+  createThread(input: {
+    title: string;
+    kind: ThreadKind;
+    channel: MessagingChannel;
+    participantIds: string[];
+    tags?: string[];
+    propertyId?: string;
+    unitId?: string;
+  }): Promise<Thread>;
+  sendMessage(
+    threadId: string,
+    input: {
+      body: string;
+      channel?: MessagingChannel;
+      attachments?: Array<
+        Pick<Attachment, "fileName" | "mimeType" | "sizeBytes"> & {
+          publicUrl?: string;
+          storageKey?: string;
+        }
+      >;
+      scheduledFor?: string;
+      internalOnly?: boolean;
+    },
+  ): Promise<Message>;
+  updateThread(
+    threadId: string,
+    patch: Partial<
+      Pick<
+        Thread,
+        | "status"
+        | "priority"
+        | "assigneeId"
+        | "assigneeLabel"
+        | "tags"
+        | "dueDate"
+        | "slaDueAt"
+        | "linkedWorkOrderId"
+        | "linkedTaskId"
+        | "followers"
+      >
+    >,
+  ): Promise<Thread>;
+  bulkUpdateThreads(
+    threadIds: string[],
+    action:
+      | { type: "mark_resolved" }
+      | { type: "reassign"; assigneeId: string; assigneeLabel: string }
+      | { type: "add_tag"; tag: string },
+  ): Promise<{ updated: Thread[] }>;
+  searchGlobal(input: {
+    text: string;
+  }): Promise<{ threads: Thread[]; messages: Message[]; attachments: Attachment[] }>;
+  resetDemoSessionData?(scope?: "current" | "all"): Promise<void> | void;
+}
+
