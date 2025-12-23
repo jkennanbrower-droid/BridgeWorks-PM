@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+} from "react";
 
 import { normalizeModuleOrder, resolveActiveModuleId } from "./defaults";
 import { dashboardReducer, type DashboardState } from "./reducer";

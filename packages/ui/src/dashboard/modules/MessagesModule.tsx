@@ -278,7 +278,14 @@ function Segmented({
   );
 }
 
-export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean }) {
+export function MessagesModule({
+  appId = "app",
+  isStaffView = false,
+}: {
+  appId?: string;
+  isStaffView?: boolean;
+}) {
+  const messagesUiStorageKey = `bw.messages.ui.v1.${appId}`;
   const [activeFilter, setActiveFilter] = useState<ThreadFilter>("all");
   const [activeSort, setActiveSort] = useState<ThreadSort>("mostRecent");
   const activeThread =
@@ -296,12 +303,44 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
   const [threadListHasMore, setThreadListHasMore] = useState(false);
   const [messageListHasMore, setMessageListHasMore] = useState(false);
 
+  // Keep closed by default (no persistence yet).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.matchMedia?.("(min-width: 1280px)")?.matches) {
-      setThreadDetailsOpen(true);
+    try {
+      const raw = window.localStorage.getItem(messagesUiStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{
+        activeFilter: ThreadFilter;
+        activeSort: ThreadSort;
+        threadDetailsOpen: boolean;
+      }>;
+      if (parsed.activeFilter) setActiveFilter(parsed.activeFilter);
+      if (parsed.activeSort) setActiveSort(parsed.activeSort);
+      if (typeof parsed.threadDetailsOpen === "boolean") {
+        setThreadDetailsOpen(parsed.threadDetailsOpen);
+      }
+    } catch {
+      // ignore storage errors
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        messagesUiStorageKey,
+        JSON.stringify({
+          version: 1,
+          activeFilter,
+          activeSort,
+          threadDetailsOpen,
+        }),
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [activeFilter, activeSort, messagesUiStorageKey, threadDetailsOpen]);
 
   const threadDetailsData = useMemo<ThreadDetailsPanelData>(
     () => ({
@@ -310,6 +349,21 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
       priority: "—",
       createdAtLabel: "—",
       lastActivityAtLabel: "—",
+      linked: {},
+      participants: [],
+      attachments: [],
+      tags: { items: [] },
+    }),
+    [],
+  );
+
+  const threadDetailsDataEmpty = useMemo<ThreadDetailsPanelData>(
+    () => ({
+      title: "-",
+      status: "-",
+      priority: "-",
+      createdAtLabel: "-",
+      lastActivityAtLabel: "-",
       linked: {},
       participants: [],
       attachments: [],
@@ -669,10 +723,23 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
           <div className="flex min-w-0 flex-col overflow-hidden bg-white">
           <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar initials="AW" tone="emerald" online />
+              <Avatar
+                initials={
+                  activeThread.id
+                    ? activeThread.name
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()
+                    : "--"
+                }
+                tone={activeThread.avatarTone}
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">
-                  Anna Williams
+                  {activeThread.id ? activeThread.name : "No thread selected"}
                 </p>
                 <p className="truncate text-xs text-slate-500">Tenant · Unit 14</p>
               </div>
@@ -800,7 +867,7 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
             isOpen={threadDetailsOpen}
             onClose={() => setThreadDetailsOpen(false)}
             isStaffView={isStaffView}
-            data={threadDetailsData}
+            data={threadDetailsDataEmpty}
             className="hidden xl:flex"
           />
       </div>
@@ -817,7 +884,7 @@ export function MessagesModule({ isStaffView = false }: { isStaffView?: boolean 
             isOpen={threadDetailsOpen}
             onClose={() => setThreadDetailsOpen(false)}
             isStaffView={isStaffView}
-            data={threadDetailsData}
+            data={threadDetailsDataEmpty}
             className="fixed inset-y-0 right-0 z-50 w-[340px] max-w-[90vw] shadow-xl"
           />
         </div>

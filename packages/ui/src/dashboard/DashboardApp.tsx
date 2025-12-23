@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { DashboardProvider, useDashboard } from "./DashboardProvider";
 import { DashboardShell } from "./shell/DashboardShell";
@@ -53,12 +53,17 @@ function DashboardContent({
     resetCustomLayout,
   } = useDashboard();
 
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+
   const orderedModules = useMemo(
     () => resolveOrderedModules(modules, state.moduleOrder),
     [modules, state.moduleOrder],
   );
 
-  const activeModuleId = state.activeModuleId || orderedModules[0]?.id || "";
+  const activeModuleId = hydrated
+    ? state.activeModuleId || orderedModules[0]?.id || ""
+    : "";
   const activeModule = orderedModules.find(
     (module) => module.id === activeModuleId,
   );
@@ -87,7 +92,9 @@ function DashboardContent({
         hasCustomLayout ? () => resetCustomLayout(activeModuleId) : undefined
       }
     >
-      {activeModuleId === "overview" ? (
+      {!hydrated ? (
+        <div className="h-full min-h-0 bg-slate-50" />
+      ) : activeModuleId === "overview" ? (
         <OverviewModule
           layout={effectiveLayout}
           customizeMode={state.customizeMode}
@@ -96,7 +103,7 @@ function DashboardContent({
           }
         />
       ) : activeModuleId === "messages" ? (
-        <MessagesModule isStaffView={role === "staff"} />
+        <MessagesModule appId={appId} isStaffView={role === "staff"} />
       ) : (
         <PlaceholderModule
           title={activeModule?.label ?? "Module"}

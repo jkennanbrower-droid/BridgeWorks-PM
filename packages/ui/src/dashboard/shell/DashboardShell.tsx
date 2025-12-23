@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import type { DashboardProfile, ModuleDef } from "../types";
-import { buildPublicUrl, clearDemoSession } from "../demoSession";
+import { clearDemoSession, getDemoSession } from "../demoSession";
 import { clearDashboardStorage } from "../storage";
 
 import { ModuleTabs } from "./ModuleTabs";
@@ -90,27 +90,46 @@ export function DashboardShell({
   contentVariant = "default",
   children,
 }: DashboardShellProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
+  const sidebarStorageKey = `bw.dashboard.sidebarCollapsed.v1.${appId}`;
+  const legacySidebarStorageKey = "bw.dashboard.sidebarCollapsed.v1";
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return true;
     try {
-      const stored = window.localStorage.getItem("bw.dashboard.sidebarCollapsed.v1");
-      if (stored === "true") setSidebarCollapsed(true);
+      const stored = window.localStorage.getItem(sidebarStorageKey);
+      if (stored === "true") return true;
+      if (stored === "false") return false;
+      const legacy = window.localStorage.getItem(legacySidebarStorageKey);
+      if (legacy === "true") return true;
+      if (legacy === "false") return false;
     } catch {
       // ignore storage errors
     }
-  }, []);
+    return true;
+  });
+  const [demoActorId, setDemoActorId] = useState<string>("");
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        "bw.dashboard.sidebarCollapsed.v1",
+        sidebarStorageKey,
+        sidebarCollapsed ? "true" : "false",
+      );
+      window.localStorage.setItem(
+        legacySidebarStorageKey,
         sidebarCollapsed ? "true" : "false",
       );
     } catch {
       // ignore storage errors
     }
-  }, [sidebarCollapsed]);
+  }, [legacySidebarStorageKey, sidebarCollapsed, sidebarStorageKey]);
+
+  useEffect(() => {
+    const session = getDemoSession(appId);
+    if (session?.actorId) setDemoActorId(session.actorId);
+  }, [appId]);
+
+  const publicHomeUrl = "http://localhost:3100/";
+  const publicLoginUrl = "http://localhost:3100/login";
 
   return (
     <main className="h-screen overflow-hidden bg-slate-50 text-slate-900">
@@ -133,6 +152,13 @@ export function DashboardShell({
                 <BuildingIcon />
                 Canyon Ridge Apartments
               </button>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
+                <span className="text-slate-400">Demo</span>
+                <span className="text-slate-700">
+                  {appId}
+                  {demoActorId ? ` • ${demoActorId.slice(-6)}` : ""}
+                </span>
+              </div>
               <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Search
@@ -145,34 +171,34 @@ export function DashboardShell({
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {roleOptions.length > 1 && onRoleChange ? (
-                  <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Role
-                    <select
-                      value={role}
-                      onChange={(event) => onRoleChange(event.target.value)}
-                      className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
-                    >
-                      {roleOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                <a
-                  href={buildPublicUrl("/")}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300"
-                >
-                  Home
-                </a>
                 <button
                   type="button"
                   onClick={() => {
+                    try {
+                      window.localStorage.setItem(sidebarStorageKey, "true");
+                      window.localStorage.setItem(legacySidebarStorageKey, "true");
+                    } catch {
+                      // ignore storage errors
+                    }
+                    clearDashboardStorage(appId);
+                    window.location.assign(publicHomeUrl);
+                  }}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300"
+                >
+                  Home
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.localStorage.setItem(sidebarStorageKey, "true");
+                      window.localStorage.setItem(legacySidebarStorageKey, "true");
+                    } catch {
+                      // ignore storage errors
+                    }
                     clearDemoSession(appId);
                     clearDashboardStorage(appId);
-                    window.location.assign(buildPublicUrl("/login"));
+                    window.location.assign(publicLoginUrl);
                   }}
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300"
                 >
