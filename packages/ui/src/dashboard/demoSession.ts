@@ -29,9 +29,9 @@ type DemoUsersState = {
   users: DemoUser[];
 };
 
-declare const process:
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  NodeJS.Process;
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
 const SESSION_STORAGE_PREFIX = "bw.demo.session.v1";
 const USERS_STORAGE_PREFIX = "bw.demo.users.v1";
