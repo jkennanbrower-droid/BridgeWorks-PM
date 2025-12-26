@@ -1845,4 +1845,15 @@ addAlias("/auth/bootstrap", "/api/auth/bootstrap", async (req, res) => {
 });
 
 const port = process.env.PORT || 3103;
-app.listen(port, "0.0.0.0", () => console.log("listening on", port));
+const server = app.listen(port, "0.0.0.0", () => console.log("listening on", port));
+server.ref?.();
+
+function shutdown(signal) {
+  console.log(`\n${signal} received, shutting down...`);
+  server.close(() => {
+    process.exit(0);
+  });
+}
+
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
