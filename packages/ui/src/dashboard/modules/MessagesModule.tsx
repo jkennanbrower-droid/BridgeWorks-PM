@@ -1589,21 +1589,21 @@ export function MessagesModule({
           .join(", ") ||
         "(attachment)";
 
-      optimisticId = `temp_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+      const optimisticIdValue = `temp_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+      optimisticId = optimisticIdValue;
       const optimisticAttachments = attachments.map((a, index) => ({
-        id: `temp_att_${optimisticId}_${index}`,
+        id: `temp_att_${optimisticIdValue}_${index}`,
         threadId: activeThread.id,
-        messageId: optimisticId,
+        messageId: optimisticIdValue,
         fileName: a.fileName,
         mimeType: a.mimeType,
         sizeBytes: a.sizeBytes,
         uploadedAt: now.toISOString(),
         uploadedById: viewer.actorId,
-        storageKey: a.storageKey,
         publicUrl: a.publicUrl,
       }));
       const optimisticMessage: Message = {
-        id: optimisticId,
+        id: optimisticIdValue,
         threadId: activeThread.id,
         senderId: viewer.actorId,
         senderLabel: activeThreadParticipantById.get(viewer.actorId)?.name ?? "You",
