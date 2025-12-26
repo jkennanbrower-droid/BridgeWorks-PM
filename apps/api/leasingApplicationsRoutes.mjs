@@ -13,6 +13,13 @@ import {
   createApplicationFeeIntent,
   listApplicationFeePaymentAttempts,
 } from "./leasePaymentsRepo.mjs";
+import {
+  attachDocument,
+  createInfoRequest,
+  generateRequirementItems,
+  respondToInfoRequest,
+  updateDocumentVerification,
+} from "./leasingRequirementsRepo.mjs";
 import { releaseReservation } from "./unitReservationsRepo.mjs";
 
 function errorJson(res, status, error) {
@@ -33,6 +40,28 @@ function getRequestIp(req) {
   const forwarded = String(raw ?? "").split(",")[0]?.trim();
   return forwarded || req.ip || null;
 }
+
+const documentTypeSchema = z.enum([
+  "GOVERNMENT_ID",
+  "PROOF_OF_INCOME",
+  "BANK_STATEMENT",
+  "TAX_RETURN",
+  "EMPLOYMENT_LETTER",
+  "REFERENCE_LETTER",
+  "PET_DOCUMENTATION",
+  "VEHICLE_REGISTRATION",
+  "INSURANCE_CERTIFICATE",
+  "OTHER",
+]);
+
+const requirementTypeSchema = z.enum([
+  "DOCUMENT",
+  "SCREENING",
+  "PAYMENT",
+  "SIGNATURE",
+  "VERIFICATION",
+  "CUSTOM",
+]);
 
 export function registerLeasingApplicationRoutes({ app, pool, noStore, logger }) {
   const router = express.Router();
@@ -246,6 +275,222 @@ export function registerLeasingApplicationRoutes({ app, pool, noStore, logger })
       const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "POST /lease-applications/:id/payments/application-fee failed");
       return errorJson(res, 500, hint ?? "Failed to create payment intent.");
+    }
+  });
+
+  router.post("/:applicationId/requirements/generate", async (req, res) => {
+    const schema = z.object({
+      orgId: z.string().min(1),
+      jurisdictionCode: z.string().trim().optional(),
+    });
+
+    try {
+      const body = schema.parse(req.body);
+      const applicationId = String(req.params.applicationId || "");
+      if (!applicationId) return errorJson(res, 400, "Missing applicationId.");
+
+      const result = await generateRequirementItems(pool, {
+        ...body,
+        applicationId,
+      });
+
+      if (!result.ok) {
+        const status = result.errorCode === "NOT_FOUND" ? 404 : 400;
+        return res.status(status).json(result);
+      }
+
+      return res.status(201).json(result);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      }
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /lease-applications/:id/requirements/generate failed");
+      return errorJson(res, 500, hint ?? "Failed to generate requirements.");
+    }
+  });
+
+  router.post("/:applicationId/parties/:partyId/documents", async (req, res) => {
+    const schema = z.object({
+      orgId: z.string().min(1),
+      requirementItemId: z.string().min(1).optional(),
+      documentType: documentTypeSchema,
+      fileName: z.string().min(1),
+      mimeType: z.string().min(1),
+      sizeBytes: z.number().int().nonnegative(),
+      storageKey: z.string().min(1).optional(),
+      publicUrl: z.string().min(1).optional(),
+      scanStatus: z.string().min(1).optional(),
+      scanResult: z.record(z.any()).optional(),
+      validFrom: z.string().datetime().optional(),
+      validUntil: z.string().datetime().optional(),
+    });
+
+    try {
+      const body = schema.parse(req.body);
+      const applicationId = String(req.params.applicationId || "");
+      const partyId = String(req.params.partyId || "");
+      if (!applicationId || !partyId) return errorJson(res, 400, "Missing applicationId or partyId.");
+
+      const result = await attachDocument(pool, {
+        ...body,
+        applicationId,
+        partyId,
+      });
+
+      if (!result.ok) {
+        const status =
+          result.errorCode === "NOT_FOUND" || result.errorCode === "PARTY_NOT_FOUND"
+            ? 404
+            : result.errorCode === "REQUIREMENT_NOT_FOUND"
+              ? 404
+            : result.errorCode === "REQUIREMENT_PARTY_MISMATCH"
+                ? 409
+            : 400;
+        return res.status(status).json(result);
+      }
+
+      return res.status(201).json(result);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      }
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /lease-applications/:id/parties/:partyId/documents failed");
+      return errorJson(res, 500, hint ?? "Failed to attach document.");
+    }
+  });
+
+  router.post("/:applicationId/documents/:documentId/verify", async (req, res) => {
+    const schema = z.object({
+      orgId: z.string().min(1),
+      action: z.enum(["VERIFY", "REJECT"]),
+      reviewerId: z.string().min(1).optional(),
+      rejectedReason: z.string().min(1).optional(),
+    });
+
+    try {
+      const body = schema.parse(req.body);
+      const applicationId = String(req.params.applicationId || "");
+      const documentId = String(req.params.documentId || "");
+      if (!applicationId || !documentId) return errorJson(res, 400, "Missing applicationId or documentId.");
+
+      const result = await updateDocumentVerification(pool, {
+        ...body,
+        documentId,
+        applicationId,
+      });
+
+      if (!result.ok) {
+        const status =
+          result.errorCode === "NOT_FOUND"
+            ? 404
+            : result.errorCode === "INVALID_STATUS"
+              ? 409
+            : 400;
+        return res.status(status).json(result);
+      }
+
+      return res.json(result);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      }
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /lease-applications/:id/documents/:documentId/verify failed");
+      return errorJson(res, 500, hint ?? "Failed to update document verification.");
+    }
+  });
+
+  router.post("/:applicationId/info-requests", async (req, res) => {
+    const schema = z.object({
+      orgId: z.string().min(1),
+      targetPartyId: z.string().min(1).optional(),
+      message: z.string().trim().optional(),
+      unlockScopes: z.array(z.string().min(1)).optional(),
+      itemsToRequest: z
+        .array(
+          z.object({
+            name: z.string().min(1),
+            description: z.string().trim().optional(),
+            requirementType: requirementTypeSchema.optional(),
+            documentType: documentTypeSchema.optional(),
+            partyId: z.string().min(1).optional(),
+            isRequired: z.boolean().optional(),
+            sortOrder: z.number().int().optional(),
+            metadata: z.record(z.any()).optional(),
+            alternatives: z.any().optional(),
+          }),
+        )
+        .optional(),
+    });
+
+    try {
+      const body = schema.parse(req.body);
+      const applicationId = String(req.params.applicationId || "");
+      if (!applicationId) return errorJson(res, 400, "Missing applicationId.");
+
+      const result = await createInfoRequest(pool, {
+        ...body,
+        applicationId,
+      });
+
+      if (!result.ok) {
+        const status =
+          result.errorCode === "NOT_FOUND" || result.errorCode === "PARTY_NOT_FOUND"
+            ? 404
+            : result.errorCode === "INVALID_STATUS"
+              ? 409
+            : 400;
+        return res.status(status).json(result);
+      }
+
+      return res.status(201).json(result);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      }
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /lease-applications/:id/info-requests failed");
+      return errorJson(res, 500, hint ?? "Failed to create info request.");
+    }
+  });
+
+  router.post("/:applicationId/info-requests/:infoRequestId/respond", async (req, res) => {
+    const schema = z.object({
+      orgId: z.string().min(1),
+    });
+
+    try {
+      const body = schema.parse(req.body);
+      const applicationId = String(req.params.applicationId || "");
+      const infoRequestId = String(req.params.infoRequestId || "");
+      if (!applicationId || !infoRequestId) return errorJson(res, 400, "Missing applicationId or infoRequestId.");
+
+      const result = await respondToInfoRequest(pool, {
+        ...body,
+        applicationId,
+        infoRequestId,
+      });
+
+      if (!result.ok) {
+        const status =
+          result.errorCode === "NOT_FOUND"
+            ? 404
+            : result.errorCode === "INVALID_STATUS"
+              ? 409
+            : 400;
+        return res.status(status).json(result);
+      }
+
+      return res.json(result);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      }
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /lease-applications/:id/info-requests/:infoRequestId/respond failed");
+      return errorJson(res, 500, hint ?? "Failed to respond to info request.");
     }
   });
 

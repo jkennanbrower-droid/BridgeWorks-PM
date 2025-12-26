@@ -34,22 +34,26 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const migrationPath = path.join(
-  repoRoot,
-  "packages",
-  "db",
-  "prisma",
-  "migrations",
-  "20251223120000_messaging",
-  "migration.sql",
-);
+const migrationPaths = [
+  path.join(repoRoot, "packages", "db", "prisma", "migrations", "20251223120000_messaging", "migration.sql"),
+  path.join(
+    repoRoot,
+    "packages",
+    "db",
+    "prisma",
+    "migrations",
+    "20251228120000_messaging_reactions",
+    "migration.sql",
+  ),
+];
 
-if (!fs.existsSync(migrationPath)) {
-  console.error(`Missing migration SQL at ${migrationPath}`);
-  process.exit(1);
-}
-
-const sql = fs.readFileSync(migrationPath, "utf8");
+const migrations = migrationPaths.map((migrationPath) => {
+  if (!fs.existsSync(migrationPath)) {
+    console.error(`Missing migration SQL at ${migrationPath}`);
+    process.exit(1);
+  }
+  return { path: migrationPath, sql: fs.readFileSync(migrationPath, "utf8") };
+});
 
 const pool = new pg.Pool({
   connectionString,
@@ -62,7 +66,9 @@ const pool = new pg.Pool({
 const client = await pool.connect();
 try {
   await client.query("BEGIN");
-  await client.query(sql);
+  for (const migration of migrations) {
+    await client.query(migration.sql);
+  }
   await client.query("COMMIT");
   console.log("Messaging schema bootstrap applied.");
 } catch (error) {
@@ -77,4 +83,3 @@ try {
   client.release();
   await pool.end();
 }
-

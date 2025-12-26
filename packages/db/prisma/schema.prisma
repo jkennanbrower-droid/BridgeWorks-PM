@@ -429,6 +429,7 @@ model Organization {
   messagingAttachments           MessagingAttachment[]
   messagingThreadAuditEvents     MessagingThreadAuditEvent[]
   messagingThreadFollowers       MessagingThreadFollower[]
+  messagingReactions             MessagingReaction[]
   leaseApplications              LeaseApplication[]
   documents                      Document[]
   paymentIntents                 PaymentIntent[]
@@ -541,6 +542,7 @@ model MessagingThread {
   participants MessagingThreadParticipant[]
   messages     MessagingMessage[]
   attachments  MessagingAttachment[]
+  reactions    MessagingReaction[]
   auditEvents  MessagingThreadAuditEvent[]
   followers    MessagingThreadFollower[]
 
@@ -590,10 +592,13 @@ model MessagingMessage {
   deletedAt         DateTime?               @map("deleted_at") @db.Timestamptz(6)
   deletedById       String?                 @map("deleted_by_id") @db.Text
   deletedForEveryone Boolean                @default(true) @map("deleted_for_everyone")
+  editedAt          DateTime?               @map("edited_at") @db.Timestamptz(6)
+  editedById        String?                 @map("edited_by_id") @db.Text
 
   organization Organization          @relation(fields: [orgId], references: [id])
   thread       MessagingThread       @relation(fields: [threadId], references: [id])
   attachments  MessagingAttachment[]
+  reactions    MessagingReaction[]
 
   @@index([threadId, createdAt])
   @@index([orgId, createdAt])
@@ -654,6 +659,24 @@ model MessagingThreadFollower {
   @@unique([threadId, followerId])
   @@index([followerId])
   @@map("messaging_thread_followers")
+}
+
+model MessagingReaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  threadId  String   @map("thread_id") @db.Uuid
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Text
+  emoji     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [orgId], references: [id])
+  thread       MessagingThread @relation(fields: [threadId], references: [id])
+  message      MessagingMessage @relation(fields: [messageId], references: [id])
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("messaging_reactions")
 }
 
 // ============================================================================

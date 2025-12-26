@@ -614,6 +614,14 @@ export async function createInfoRequest(pool, input) {
       ? input.itemsToRequest
       : [];
 
+    for (const item of itemsToRequest) {
+      if (!item || !item.name) continue;
+      const itemPartyId = item.partyId ?? targetPartyId ?? null;
+      if (itemPartyId && !partyIds.has(itemPartyId)) {
+        return { ok: false, errorCode: "PARTY_NOT_FOUND" };
+      }
+    }
+
     await db.query(
       `
         INSERT INTO "info_requests" (
@@ -641,9 +649,6 @@ export async function createInfoRequest(pool, input) {
     for (const [index, item] of itemsToRequest.entries()) {
       if (!item || !item.name) continue;
       const itemPartyId = item.partyId ?? targetPartyId ?? null;
-      if (itemPartyId && !partyIds.has(itemPartyId)) {
-        return { ok: false, errorCode: "PARTY_NOT_FOUND" };
-      }
 
       const requirementType =
         item.requirementType ?? (item.documentType ? "DOCUMENT" : "CUSTOM");

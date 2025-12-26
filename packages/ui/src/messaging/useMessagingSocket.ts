@@ -4,6 +4,7 @@ import { io, Socket } from "socket.io-client";
 export interface MessagingSocketEvents {
   "message:created": (message: any) => void;
   "message:deleted": (data: { threadId: string; messageId: string; deletedBy: string; deletedAt: string }) => void;
+  "message:updated": (message: any) => void;
   "message:status": (data: { threadId: string; messageId: string; status: string; updatedAt: string }) => void;
   "message:reaction": (data: { threadId: string; messageId: string; reactions: Record<string, string[]> }) => void;
   "thread:created": (thread: any) => void;
@@ -17,6 +18,7 @@ export interface UseMessagingSocketOptions {
   threadId?: string;
   onMessageCreated?: MessagingSocketEvents["message:created"];
   onMessageDeleted?: MessagingSocketEvents["message:deleted"];
+  onMessageUpdated?: MessagingSocketEvents["message:updated"];
   onMessageStatus?: MessagingSocketEvents["message:status"];
   onMessageReaction?: MessagingSocketEvents["message:reaction"];
   onThreadCreated?: MessagingSocketEvents["thread:created"];
@@ -31,6 +33,7 @@ export function useMessagingSocket({
   threadId,
   onMessageCreated,
   onMessageDeleted,
+  onMessageUpdated,
   onMessageStatus,
   onMessageReaction,
   onThreadCreated,
@@ -120,6 +123,9 @@ export function useMessagingSocket({
     if (onMessageDeleted) {
       socket.on("message:deleted", onMessageDeleted);
     }
+    if (onMessageUpdated) {
+      socket.on("message:updated", onMessageUpdated);
+    }
     if (onMessageStatus) {
       socket.on("message:status", onMessageStatus);
     }
@@ -139,6 +145,7 @@ export function useMessagingSocket({
     return () => {
       if (onMessageCreated) socket.off("message:created", onMessageCreated);
       if (onMessageDeleted) socket.off("message:deleted", onMessageDeleted);
+      if (onMessageUpdated) socket.off("message:updated", onMessageUpdated);
       if (onMessageStatus) socket.off("message:status", onMessageStatus);
       if (onMessageReaction) socket.off("message:reaction", onMessageReaction);
       if (onThreadCreated) socket.off("thread:created", onThreadCreated);
@@ -148,6 +155,7 @@ export function useMessagingSocket({
   }, [
     onMessageCreated,
     onMessageDeleted,
+    onMessageUpdated,
     onMessageStatus,
     onMessageReaction,
     onThreadCreated,

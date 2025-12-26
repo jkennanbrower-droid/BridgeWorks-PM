@@ -338,6 +338,11 @@ function MessageBubble({
   canDeleteForEveryone,
   onEdit,
   canEdit,
+  isEditing,
+  editDraft,
+  onEditDraftChange,
+  onCancelEdit,
+  onSaveEdit,
   selectMode,
   selected,
   onToggleSelected,
@@ -355,6 +360,7 @@ function MessageBubble({
   onAddReaction,
   onRemoveReaction,
   currentUserId,
+  resolveParticipantName,
 }: {
   messageId: string;
   mine: boolean;
@@ -370,6 +376,11 @@ function MessageBubble({
   canDeleteForEveryone?: boolean;
   onEdit?: () => void;
   canEdit?: boolean;
+  isEditing?: boolean;
+  editDraft?: string;
+  onEditDraftChange?: (next: string) => void;
+  onCancelEdit?: () => void;
+  onSaveEdit?: () => void | Promise<void>;
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
@@ -387,6 +398,7 @@ function MessageBubble({
   onAddReaction?: (emoji: string) => void;
   onRemoveReaction?: (emoji: string) => void;
   currentUserId?: string;
+  resolveParticipantName?: (userId: string) => string;
 }) {
   const trimmedBody = body.trim();
   const isDeleted = trimmedBody === "Message Deleted" || trimmedBody === "This message was deleted.";
@@ -408,6 +420,15 @@ function MessageBubble({
         .filter(([, userIds]) => userIds?.length)
         .sort((a, b) => b[1].length - a[1].length),
     [reactions],
+  );
+  const reactionHoverTextFor = useCallback(
+    (emoji: string, userIds: string[]) => {
+      const uniqueIds = Array.from(new Set(userIds ?? [])).filter(Boolean);
+      const names = uniqueIds.map((id) => (resolveParticipantName ? resolveParticipantName(id) : id));
+      if (!names.length) return `${emoji} 0`;
+      return `${emoji} ${names.length}\n${names.join(", ")}`;
+    },
+    [resolveParticipantName],
   );
   const canReact = Boolean(onAddReaction && onRemoveReaction && currentUserId);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
@@ -473,30 +494,33 @@ function MessageBubble({
         className={`flex min-w-0 max-w-[570px] flex-col ${mine ? "items-end" : "items-start"}`}
       >
         <div
-          className={`min-w-0 max-w-full break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
-            mine ? "border border-slate-200 bg-white" : "bg-slate-100"
-          } ${isDeleted ? "" : "cursor-pointer"}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            if (selectMode) {
-              onToggleSelected?.();
-              return;
-            }
-            if (isDeleted) return;
-            onToggleTimestamp(messageId);
-          }}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" && e.key !== " ") return;
-            e.preventDefault();
-            if (selectMode) {
-              onToggleSelected?.();
-              return;
-            }
-            if (isDeleted) return;
-            onToggleTimestamp(messageId);
-          }}
+          className={`flex max-w-full items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}
         >
+          <div
+            className={`min-w-0 max-w-full break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
+              mine ? "border border-slate-200 bg-white" : "bg-slate-100"
+            } ${isDeleted || isEditing ? "" : "cursor-pointer"}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              if (selectMode) {
+                onToggleSelected?.();
+                return;
+              }
+              if (isDeleted || isEditing) return;
+              onToggleTimestamp(messageId);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              if (selectMode) {
+                onToggleSelected?.();
+                return;
+              }
+              if (isDeleted || isEditing) return;
+              onToggleTimestamp(messageId);
+            }}
+          >
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
             <span>{senderLabel}</span>
             <span className="text-slate-300">·</span>
@@ -522,14 +546,16 @@ function MessageBubble({
                     type="button"
                     aria-label="Message options"
                     disabled={isDeleted}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-800"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       onToggleMenu?.();
                     }}
                   >
-                    <span aria-hidden="true">⋯</span>
+                    <span aria-hidden="true" className="text-base leading-none">
+                      ⋯
+                    </span>
                   </button>
                   {menuOpen ? (
                     <div
@@ -539,6 +565,19 @@ function MessageBubble({
                       onClick={(e) => e.stopPropagation()}
                       role="menu"
                     >
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                          onClick={() => {
+                            onToggleMenu?.();
+                            onEdit?.();
+                          }}
+                          role="menuitem"
+                        >
+                          Edit message
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="w-full px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
@@ -564,32 +603,60 @@ function MessageBubble({
             </div>
           </div>
           {body.trim() ? (
-            <div
-              className={`mt-2 whitespace-pre-wrap break-words leading-6 ${
-                isDeleted ? "italic text-slate-400" : "text-slate-800"
-              }`}
-              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-            >
-              {parts.map((p, i) =>
-                p.highlight ? (
-                  <mark
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={i}
-                    data-match-index={p.matchIndex}
-                    className={`rounded px-0.5 ${
-                      p.matchIndex === activeMatchIndex
-                        ? "bg-amber-200 ring-2 ring-amber-300"
-                        : "bg-amber-100"
-                    }`}
+            isEditing ? (
+              <div className="mt-2">
+                <textarea
+                  value={editDraft ?? ""}
+                  onChange={(e) => onEditDraftChange?.(e.target.value)}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+                  rows={3}
+                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                    onClick={() => onCancelEdit?.()}
                   >
-                    {p.text}
-                  </mark>
-                ) : (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <span key={i}>{p.text}</span>
-                ),
-              )}
-            </div>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="h-9 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                    onClick={() => void onSaveEdit?.()}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`mt-2 whitespace-pre-wrap break-words leading-6 ${
+                  isDeleted ? "italic text-slate-400" : "text-slate-800"
+                }`}
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                {parts.map((p, i) =>
+                  p.highlight ? (
+                    <mark
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={i}
+                      data-match-index={p.matchIndex}
+                      className={`rounded px-0.5 ${
+                        p.matchIndex === activeMatchIndex
+                          ? "bg-amber-200 ring-2 ring-amber-300"
+                          : "bg-amber-100"
+                      }`}
+                    >
+                      {p.text}
+                    </mark>
+                  ) : (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <span key={i}>{p.text}</span>
+                  ),
+                )}
+              </div>
+            )
           ) : null}
 
           {attachments?.length ? (
@@ -658,38 +725,9 @@ function MessageBubble({
               ) : null}
             </div>
           ) : null}
-        </div>
-        {!selectMode && !isDeleted && (reactionEntries.length || canReact) ? (
-          <div ref={reactionPickerRef} className="relative mt-2 flex flex-wrap items-center gap-2">
-            {reactionEntries.map(([emoji, userIds]) => {
-              const reacted = currentUserId ? userIds.includes(currentUserId) : false;
-              return (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    if (!canReact) return;
-                    if (reacted) {
-                      onRemoveReaction?.(emoji);
-                    } else {
-                      onAddReaction?.(emoji);
-                    }
-                  }}
-                  aria-pressed={reacted}
-                  disabled={!canReact}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold shadow-sm transition ${
-                    reacted
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  } ${canReact ? "" : "cursor-default opacity-70"}`}
-                  title={`${reacted ? "Remove" : "Add"} ${emoji}`}
-                >
-                  <span className="text-base">{emoji}</span>
-                  <span>{userIds.length}</span>
-                </button>
-              );
-            })}
-            {canReact ? (
+          </div>
+          {!selectMode && !isDeleted && canReact ? (
+            <div ref={reactionPickerRef} className="relative mb-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setReactionPickerOpen((open) => !open)}
@@ -702,40 +740,82 @@ function MessageBubble({
               >
                 <span aria-hidden="true">+</span>
               </button>
-            ) : null}
-            {reactionPickerOpen ? (
-              <div
-                className={`absolute top-full z-20 mt-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl ${
-                  mine ? "right-0" : "left-0"
-                }`}
-                role="menu"
-              >
-                {REACTION_CHOICES.map((emoji) => {
-                  const reacted = currentUserId ? (reactions?.[emoji] ?? []).includes(currentUserId) : false;
-                  return (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => {
-                        if (reacted) {
-                          onRemoveReaction?.(emoji);
-                        } else {
-                          onAddReaction?.(emoji);
-                        }
-                        setReactionPickerOpen(false);
-                      }}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition ${
-                        reacted ? "bg-slate-900 text-white" : "hover:bg-slate-100"
-                      }`}
-                      aria-label={`React with ${emoji}`}
-                      role="menuitem"
-                    >
-                      {emoji}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
+              {reactionPickerOpen ? (
+                <div
+                  className={`absolute top-full z-20 mt-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl ${
+                    mine ? "right-0" : "left-0"
+                  }`}
+                  role="menu"
+                >
+                  {REACTION_CHOICES.map((emoji) => {
+                    const reacted = currentUserId ? (reactions?.[emoji] ?? []).includes(currentUserId) : false;
+                    return (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          if (reacted) {
+                            onRemoveReaction?.(emoji);
+                          } else {
+                            onAddReaction?.(emoji);
+                          }
+                          setReactionPickerOpen(false);
+                        }}
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition ${
+                          reacted ? "bg-slate-900 text-white" : "hover:bg-slate-100"
+                        }`}
+                        aria-label={`React with ${emoji}`}
+                        role="menuitem"
+                      >
+                        {emoji}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {!selectMode && !isDeleted && reactionEntries.length ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {reactionEntries.map(([emoji, userIds]) => {
+              const reacted = currentUserId ? userIds.includes(currentUserId) : false;
+              const hoverText = reactionHoverTextFor(emoji, userIds);
+              return (
+                <span key={emoji} className="relative inline-flex group">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!canReact) return;
+                      if (reacted) {
+                        onRemoveReaction?.(emoji);
+                      } else {
+                        onAddReaction?.(emoji);
+                      }
+                    }}
+                    aria-pressed={reacted}
+                    disabled={!canReact}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold shadow-sm transition ${
+                      reacted
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    } ${canReact ? "" : "cursor-default opacity-70"}`}
+                    title={hoverText}
+                  >
+                    <span className="text-base">{emoji}</span>
+                    <span>{userIds.length}</span>
+                  </button>
+                  <div
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute top-full z-20 mt-2 hidden w-max max-w-[260px] whitespace-pre-wrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xl group-hover:block ${
+                      mine ? "right-0" : "left-0"
+                    }`}
+                  >
+                    {hoverText}
+                  </div>
+                </span>
+              );
+            })}
           </div>
         ) : null}
         {showTimestamp ? (
@@ -836,6 +916,9 @@ export function MessagesModule({
     [hiddenMessageIdSet, messages],
   );
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState<string>("");
+  const [editPending, setEditPending] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState<{
@@ -1039,6 +1122,18 @@ export function MessagesModule({
     [activeThreadId, refreshAllThreads, refreshThreads],
   );
 
+  const handleMessageUpdated = useCallback(
+    (message: Message) => {
+      if (!message?.id || !message.threadId) return;
+      if (message.internalOnly && !viewer.isStaffView) return;
+      if (message.threadId !== activeThreadId) return;
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, ...message } : m)));
+      void refreshAllThreads();
+      void refreshThreads();
+    },
+    [activeThreadId, refreshAllThreads, refreshThreads, viewer.isStaffView],
+  );
+
   const handleMessageStatus = useCallback(
     (data: { threadId: string; messageId: string; status: string; updatedAt: string }) => {
       if (!data?.messageId) return;
@@ -1088,6 +1183,7 @@ export function MessagesModule({
     enabled: socketEnabled,
     onMessageCreated: handleMessageCreated,
     onMessageDeleted: handleMessageDeleted,
+    onMessageUpdated: handleMessageUpdated,
     onMessageStatus: handleMessageStatus,
     onMessageReaction: handleMessageReaction,
     onThreadCreated: handleThreadCreated,
@@ -1097,6 +1193,9 @@ export function MessagesModule({
   useEffect(() => {
     if (!activeThreadId) {
       setMessages([]);
+      setEditingMessageId(null);
+      setEditingDraft("");
+      setEditPending(false);
       return;
     }
     client
@@ -2167,10 +2266,52 @@ export function MessagesModule({
                               onAddReaction={(emoji) => addReaction(m.threadId, m.id, emoji)}
                               onRemoveReaction={(emoji) => removeReaction(m.threadId, m.id, emoji)}
                               currentUserId={viewer.actorId}
+                              resolveParticipantName={(id) =>
+                                id === viewer.actorId ? "You" : activeThreadParticipantById.get(id)?.name ?? id
+                              }
                               menuOpen={openMessageMenuId === m.id}
                               onToggleMenu={() =>
                                 setOpenMessageMenuId((prevId) => (prevId === m.id ? null : m.id))
                               }
+                              canEdit={mine}
+                              onEdit={() => {
+                                if (!mine) return;
+                                setOpenMessageMenuId(null);
+                                setEditingMessageId(m.id);
+                                setEditingDraft(m.body);
+                              }}
+                              isEditing={editingMessageId === m.id}
+                              editDraft={editingDraft}
+                              onEditDraftChange={setEditingDraft}
+                              onCancelEdit={() => {
+                                setEditingMessageId(null);
+                                setEditingDraft("");
+                                setEditPending(false);
+                              }}
+                              onSaveEdit={async () => {
+                                if (!mine) return;
+                                if (editPending) return;
+                                const nextBody = editingDraft.trim();
+                                if (!nextBody) return;
+                                setEditPending(true);
+                                try {
+                                  await client.editMessage(m.threadId, m.id, nextBody);
+                                  const now = new Date().toISOString();
+                                  setMessages((prev) =>
+                                    prev.map((msg) =>
+                                      msg.id === m.id
+                                        ? { ...msg, body: nextBody, editedAt: now, editedById: viewer.actorId }
+                                        : msg,
+                                    ),
+                                  );
+                                  void refreshAllThreads();
+                                  void refreshThreads();
+                                  setEditingMessageId(null);
+                                  setEditingDraft("");
+                                } finally {
+                                  setEditPending(false);
+                                }
+                              }}
                               onDeleteForMe={() => {
                                 setHiddenMessageIds((prevIds) =>
                                   prevIds.includes(m.id) ? prevIds : [...prevIds, m.id],

@@ -360,6 +360,11 @@ export async function listMessages(pool, ctx, threadId) {
        m.sender_id AS "senderId",
        m.sender_label AS "senderLabel",
        m.body,
+       m.deleted_at AS "deletedAt",
+       m.deleted_by_id AS "deletedById",
+       m.deleted_for_everyone AS "deletedForEveryone",
+       m.edited_at AS "editedAt",
+       m.edited_by_id AS "editedById",
        m.created_at AS "createdAt",
        m.channel,
        m.internal_only AS "internalOnly",
@@ -411,6 +416,11 @@ export async function listMessages(pool, ctx, threadId) {
       senderId: row.senderId,
       senderLabel: row.senderLabel,
       body: row.body,
+      deletedAt: toIso(row.deletedAt),
+      deletedById: row.deletedById ?? undefined,
+      deletedForEveryone: row.deletedForEveryone ?? undefined,
+      editedAt: toIso(row.editedAt),
+      editedById: row.editedById ?? undefined,
       createdAt: toIso(row.createdAt),
       channel: row.channel,
       internalOnly: Boolean(row.internalOnly) || undefined,
@@ -524,6 +534,11 @@ async function getMessageById(db, ctx, { threadId, messageId }) {
        m.sender_id AS "senderId",
        m.sender_label AS "senderLabel",
        m.body,
+       m.deleted_at AS "deletedAt",
+       m.deleted_by_id AS "deletedById",
+       m.deleted_for_everyone AS "deletedForEveryone",
+       m.edited_at AS "editedAt",
+       m.edited_by_id AS "editedById",
        m.created_at AS "createdAt",
        m.channel,
        m.internal_only AS "internalOnly",
@@ -576,6 +591,11 @@ async function getMessageById(db, ctx, { threadId, messageId }) {
     senderId: row.senderId,
     senderLabel: row.senderLabel,
     body: row.body,
+    deletedAt: toIso(row.deletedAt),
+    deletedById: row.deletedById ?? undefined,
+    deletedForEveryone: row.deletedForEveryone ?? undefined,
+    editedAt: toIso(row.editedAt),
+    editedById: row.editedById ?? undefined,
     createdAt: toIso(row.createdAt),
     channel: row.channel,
     internalOnly: Boolean(row.internalOnly) || undefined,
@@ -1000,6 +1020,95 @@ export async function deleteMessage(pool, ctx, threadId, messageId) {
     );
 
     return { ok: true, messageId, threadId };
+  });
+}
+
+export async function editMessage(pool, ctx, threadId, messageId, body) {
+  const staffish = isStaffish(ctx.appId, ctx.role);
+  const nextBody = String(body ?? "").trim();
+  if (!nextBody) return { ok: false, error: "Body is required." };
+
+  return withTx(pool, async (db) => {
+    const access = await requireThreadAccess(db, { orgId: ctx.orgId, actorId: ctx.actorId, threadId });
+    if (!access) return { ok: false, error: "Thread not found." };
+
+    const msgResult = await db.query(
+      `SELECT id, sender_id, internal_only, deleted_at
+       FROM "messaging_messages"
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3
+       LIMIT 1`,
+      [ctx.orgId, threadId, messageId],
+    );
+    if (msgResult.rows.length === 0) return { ok: false, error: "Message not found." };
+
+    const msg = msgResult.rows[0];
+    if (msg.deleted_at) return { ok: false, error: "Cannot edit a deleted message." };
+
+    const isSender = msg.sender_id === ctx.actorId;
+    if (!isSender && !staffish) return { ok: false, error: "Not authorized to edit this message." };
+
+    const now = new Date();
+
+    await db.query(
+      `UPDATE "messaging_messages"
+       SET body = $4,
+           edited_at = $5,
+           edited_by_id = $6
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3`,
+      [ctx.orgId, threadId, messageId, nextBody, now, ctx.actorId],
+    );
+
+    // Keep thread preview in sync when editing the latest public message.
+    if (!msg.internal_only) {
+      const latestPublic = await db.query(
+        `SELECT id
+         FROM "messaging_messages"
+         WHERE org_id = $1 AND thread_id = $2 AND internal_only = false
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [ctx.orgId, threadId],
+      );
+      const latestId = latestPublic.rows[0]?.id;
+      if (latestId === messageId) {
+        await db.query(
+          `UPDATE "messaging_threads"
+           SET updated_at = $3,
+               last_message_preview = $4
+           WHERE org_id = $1 AND id = $2`,
+          [ctx.orgId, threadId, now, previewText(nextBody)],
+        );
+      } else {
+        await db.query(`UPDATE "messaging_threads" SET updated_at = $3 WHERE org_id = $1 AND id = $2`, [
+          ctx.orgId,
+          threadId,
+          now,
+        ]);
+      }
+    } else {
+      await db.query(`UPDATE "messaging_threads" SET updated_at = $3 WHERE org_id = $1 AND id = $2`, [
+        ctx.orgId,
+        threadId,
+        now,
+      ]);
+    }
+
+    await db.query(
+      `INSERT INTO "messaging_thread_audit" (id, org_id, thread_id, type, actor_id, actor_label, meta, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+      [
+        crypto.randomUUID(),
+        ctx.orgId,
+        threadId,
+        "message.edited",
+        ctx.actorId,
+        ctx.actorId,
+        JSON.stringify({ messageId }),
+        now,
+      ],
+    );
+
+    const updated = await getMessageById(db, ctx, { threadId, messageId });
+    return { ok: true, message: updated };
   });
 }
 

@@ -5,6 +5,7 @@ import {
   bulkUpdateThreads,
   createThread,
   addReaction,
+  editMessage,
   deleteMessage,
   ensureOrgId,
   isStaffish,
@@ -362,6 +363,40 @@ export function registerMessagingRoutes({ app, pool, noStore, logger, getIO }) {
       const hint = hintForDbError(e);
       logger?.error?.({ err: e }, "DELETE /messaging/threads/:threadId/messages/:messageId failed");
       return errorJson(res, 500, hint ?? "Failed to delete message.");
+    }
+  });
+
+  router.patch("/threads/:threadId/messages/:messageId", async (req, res) => {
+    const schema = z.object({
+      body: z.string().trim().min(1),
+    });
+
+    try {
+      const ctx = req.messagingCtx;
+      const threadId = String(req.params.threadId || "");
+      const messageId = String(req.params.messageId || "");
+      if (!threadId) return errorJson(res, 400, "Missing threadId.");
+      if (!messageId) return errorJson(res, 400, "Missing messageId.");
+
+      const input = schema.parse(req.body);
+      const result = await editMessage(pool, ctx, threadId, messageId, input.body);
+      if (!result.ok) {
+        const status =
+          result.error === "Thread not found." || result.error === "Message not found." ? 404 : 403;
+        return errorJson(res, status, result.error);
+      }
+
+      const io = getIO();
+      if (io && result.message) {
+        io.to(`thread:${threadId}`).emit("message:updated", result.message);
+      }
+
+      return res.json(result.message ?? { ok: true });
+    } catch (e) {
+      if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "PATCH /messaging/threads/:threadId/messages/:messageId failed");
+      return errorJson(res, 500, hint ?? "Failed to edit message.");
     }
   });
 
