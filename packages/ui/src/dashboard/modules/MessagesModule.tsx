@@ -433,6 +433,16 @@ function MessageBubble({
   const canReact = Boolean(onAddReaction && onRemoveReaction && currentUserId);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const el = editTextareaRef.current;
+    if (!el) return;
+    // Autosize to content so edit mode doesn't "condense" the message bubble.
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editDraft, isEditing]);
 
   useEffect(() => {
     if (!reactionPickerOpen) return;
@@ -606,10 +616,11 @@ function MessageBubble({
             isEditing ? (
               <div className="mt-2">
                 <textarea
+                  ref={editTextareaRef}
                   value={editDraft ?? ""}
                   onChange={(e) => onEditDraftChange?.(e.target.value)}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
-                  rows={3}
+                  className="w-full resize-none overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-800 shadow-sm"
+                  rows={1}
                   style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                 />
                 <div className="mt-2 flex justify-end gap-2">

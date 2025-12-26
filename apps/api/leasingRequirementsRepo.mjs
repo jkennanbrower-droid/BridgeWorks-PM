@@ -639,8 +639,8 @@ export async function createInfoRequest(pool, input) {
         applicationId,
         targetPartyId,
         input.message ?? null,
-        itemsToRequest.length > 0 ? itemsToRequest : null,
-        Array.isArray(input.unlockScopes) ? input.unlockScopes : null,
+        itemsToRequest.length > 0 ? JSON.stringify(itemsToRequest) : null,
+        Array.isArray(input.unlockScopes) ? JSON.stringify(input.unlockScopes) : null,
         now,
       ],
     );
