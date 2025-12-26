@@ -19,6 +19,19 @@ function previewText(text, maxLen = 140) {
   return `${trimmed.slice(0, maxLen - 1)}…`;
 }
 
+function normalizeReactions(value) {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return typeof value === "object" ? value : undefined;
+}
+
 export function isStaffish(appId, role) {
   const normalizedRole = String(role || "").toLowerCase();
   return (
@@ -83,6 +96,21 @@ async function requireThreadAccess(db, { orgId, actorId, threadId }) {
   );
   if (thread.rows.length === 0) return null;
   return thread.rows[0];
+}
+
+async function fetchMessageReactions(db, { orgId, messageId }) {
+  const result = await db.query(
+    `SELECT COALESCE(jsonb_object_agg(emoji, users), '{}'::jsonb) AS reactions
+     FROM (
+       SELECT emoji, jsonb_agg(user_id) AS users
+       FROM "messaging_reactions"
+       WHERE org_id = $1 AND message_id = $2
+       GROUP BY emoji
+    ) AS grouped`,
+    [orgId, messageId],
+  );
+  const reactions = normalizeReactions(result.rows[0]?.reactions);
+  return reactions ?? {};
 }
 
 function buildThreadSelect({ includeUnreadForActor = true, excludeInternalUnread = false } = {}) {
@@ -355,13 +383,23 @@ export async function listMessages(pool, ctx, threadId) {
            )
          ) FILTER (WHERE a.id IS NOT NULL),
          '[]'::json
-       ) AS attachments
+       ) AS attachments,
+       COALESCE(reactions_agg.reactions, '{}'::jsonb) AS reactions
      FROM "messaging_messages" m
      LEFT JOIN "messaging_attachments" a
        ON a.org_id = m.org_id AND a.thread_id = m.thread_id AND a.message_id = m.id
+     LEFT JOIN LATERAL (
+       SELECT jsonb_object_agg(emoji, users) AS reactions
+       FROM (
+         SELECT emoji, jsonb_agg(user_id) AS users
+         FROM "messaging_reactions" mr
+         WHERE mr.org_id = m.org_id AND mr.message_id = m.id
+         GROUP BY emoji
+       ) AS grouped
+     ) AS reactions_agg ON true
      WHERE m.org_id = $1 AND m.thread_id = $2
      ${internalWhere}
-     GROUP BY m.id
+     GROUP BY m.id, reactions_agg.reactions
      ORDER BY m.created_at ASC`,
     params,
   );
@@ -396,6 +434,7 @@ export async function listMessages(pool, ctx, threadId) {
             scanStatus: a.scanStatus ?? undefined,
           }))
         : [],
+      reactions: normalizeReactions(row.reactions),
     })),
   };
 }
@@ -508,13 +547,23 @@ async function getMessageById(db, ctx, { threadId, messageId }) {
            )
          ) FILTER (WHERE a.id IS NOT NULL),
          '[]'::json
-       ) AS attachments
+       ) AS attachments,
+       COALESCE(reactions_agg.reactions, '{}'::jsonb) AS reactions
      FROM "messaging_messages" m
      LEFT JOIN "messaging_attachments" a
        ON a.org_id = m.org_id AND a.thread_id = m.thread_id AND a.message_id = m.id
+     LEFT JOIN LATERAL (
+       SELECT jsonb_object_agg(emoji, users) AS reactions
+       FROM (
+         SELECT emoji, jsonb_agg(user_id) AS users
+         FROM "messaging_reactions" mr
+         WHERE mr.org_id = m.org_id AND mr.message_id = m.id
+         GROUP BY emoji
+       ) AS grouped
+     ) AS reactions_agg ON true
      WHERE m.org_id = $1 AND m.thread_id = $2 AND m.id = $3
      ${internalWhere}
-     GROUP BY m.id
+     GROUP BY m.id, reactions_agg.reactions
      LIMIT 1`,
     [ctx.orgId, threadId, messageId],
   );
@@ -547,6 +596,7 @@ async function getMessageById(db, ctx, { threadId, messageId }) {
           scanStatus: a.scanStatus ?? undefined,
         }))
       : [],
+    reactions: normalizeReactions(row.reactions),
   };
 }
 
@@ -568,7 +618,7 @@ export async function sendMessage(pool, ctx, threadId, input) {
         ? "queued"
         : channel === "portal"
           ? "sent"
-          : "queued"; // TODO (Prompt 4): provider delivery updates this.
+          : "queued"; // Provider webhooks update via PATCH /messaging/messages/:id/status
 
     const internalOnly = staffish ? Boolean(input.internalOnly) : false; // TODO: real RBAC.
 
@@ -877,6 +927,163 @@ export async function searchGlobal(pool, ctx, text) {
       scanStatus: a.scanStatus ?? undefined,
     })),
   };
+}
+
+export async function deleteMessage(pool, ctx, threadId, messageId) {
+  const staffish = isStaffish(ctx.appId, ctx.role);
+
+  return withTx(pool, async (db) => {
+    // Verify thread access
+    const access = await requireThreadAccess(db, { orgId: ctx.orgId, actorId: ctx.actorId, threadId });
+    if (!access) return { ok: false, error: "Thread not found." };
+
+    // Check message exists and get sender
+    const msgResult = await db.query(
+      `SELECT id, sender_id, deleted_at
+       FROM "messaging_messages"
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3
+       LIMIT 1`,
+      [ctx.orgId, threadId, messageId],
+    );
+
+    if (msgResult.rows.length === 0) {
+      return { ok: false, error: "Message not found." };
+    }
+
+    const msg = msgResult.rows[0];
+
+    // Already deleted
+    if (msg.deleted_at) {
+      return { ok: true, alreadyDeleted: true };
+    }
+
+    // RBAC: Allow delete if sender OR staffish
+    const isSender = msg.sender_id === ctx.actorId;
+    if (!isSender && !staffish) {
+      return { ok: false, error: "Not authorized to delete this message." };
+    }
+
+    const now = new Date();
+
+    // Soft delete: overwrite body, clear attachments, set deleted fields
+    await db.query(
+      `UPDATE "messaging_messages"
+       SET body = $4,
+           deleted_at = $5,
+           deleted_by_id = $6,
+           deleted_for_everyone = true
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3`,
+      [ctx.orgId, threadId, messageId, "This message was deleted.", now, ctx.actorId],
+    );
+
+    // Clear attachments for this message
+    await db.query(
+      `DELETE FROM "messaging_attachments"
+       WHERE org_id = $1 AND thread_id = $2 AND message_id = $3`,
+      [ctx.orgId, threadId, messageId],
+    );
+
+    // Create audit event
+    await db.query(
+      `INSERT INTO "messaging_thread_audit" (id, org_id, thread_id, type, actor_id, actor_label, meta, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+      [
+        crypto.randomUUID(),
+        ctx.orgId,
+        threadId,
+        "message.deleted",
+        ctx.actorId,
+        ctx.actorId,
+        JSON.stringify({ messageId }),
+        now,
+      ],
+    );
+
+    return { ok: true, messageId, threadId };
+  });
+}
+
+export async function addReaction(pool, ctx, threadId, messageId, emoji) {
+  return withTx(pool, async (db) => {
+    const access = await requireThreadAccess(db, { orgId: ctx.orgId, actorId: ctx.actorId, threadId });
+    if (!access) return { ok: false, error: "Thread not found." };
+
+    const msgResult = await db.query(
+      `SELECT id
+       FROM "messaging_messages"
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3
+       LIMIT 1`,
+      [ctx.orgId, threadId, messageId],
+    );
+
+    if (msgResult.rows.length === 0) {
+      return { ok: false, error: "Message not found." };
+    }
+
+    await db.query(
+      `INSERT INTO "messaging_reactions" (
+        id, org_id, thread_id, message_id, user_id, emoji, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7
+      )
+      ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+      [crypto.randomUUID(), ctx.orgId, threadId, messageId, ctx.actorId, emoji, new Date()],
+    );
+
+    const reactions = await fetchMessageReactions(db, { orgId: ctx.orgId, messageId });
+    return { ok: true, reactions };
+  });
+}
+
+export async function removeReaction(pool, ctx, threadId, messageId, emoji) {
+  return withTx(pool, async (db) => {
+    const access = await requireThreadAccess(db, { orgId: ctx.orgId, actorId: ctx.actorId, threadId });
+    if (!access) return { ok: false, error: "Thread not found." };
+
+    const msgResult = await db.query(
+      `SELECT id
+       FROM "messaging_messages"
+       WHERE org_id = $1 AND thread_id = $2 AND id = $3
+       LIMIT 1`,
+      [ctx.orgId, threadId, messageId],
+    );
+
+    if (msgResult.rows.length === 0) {
+      return { ok: false, error: "Message not found." };
+    }
+
+    await db.query(
+      `DELETE FROM "messaging_reactions"
+       WHERE org_id = $1 AND thread_id = $2 AND message_id = $3 AND user_id = $4 AND emoji = $5`,
+      [ctx.orgId, threadId, messageId, ctx.actorId, emoji],
+    );
+
+    const reactions = await fetchMessageReactions(db, { orgId: ctx.orgId, messageId });
+    return { ok: true, reactions };
+  });
+}
+
+export async function updateMessageStatus(pool, { orgId, messageId, status }) {
+  const validStatuses = ["queued", "sent", "delivered", "read", "failed"];
+  if (!validStatuses.includes(status)) {
+    return { ok: false, error: "Invalid status." };
+  }
+
+  const now = new Date();
+  const result = await pool.query(
+    `UPDATE "messaging_messages"
+     SET delivery_status = $3::"MessagingDeliveryStatus",
+         delivery_updated_at = $4
+     WHERE org_id = $1 AND id = $2
+     RETURNING id, thread_id AS "threadId", delivery_status AS "deliveryStatus"`,
+    [orgId, messageId, status, now],
+  );
+
+  if (result.rows.length === 0) {
+    return { ok: false, error: "Message not found." };
+  }
+
+  return { ok: true, message: result.rows[0] };
 }
 
 export async function markThreadRead(pool, ctx, threadId) {

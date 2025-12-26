@@ -4,13 +4,17 @@ import { z } from "zod";
 import {
   bulkUpdateThreads,
   createThread,
+  addReaction,
+  deleteMessage,
   ensureOrgId,
   isStaffish,
   listMessages,
   listThreads,
   markThreadRead,
+  removeReaction,
   searchGlobal,
   sendMessage,
+  updateMessageStatus,
   updateThread,
 } from "./messagingRepo.mjs";
 
@@ -65,7 +69,7 @@ function buildDemoContext(req) {
   };
 }
 
-export function registerMessagingRoutes({ app, pool, noStore, logger }) {
+export function registerMessagingRoutes({ app, pool, noStore, logger, getIO }) {
   const router = express.Router();
 
   router.use((req, res, next) => {
@@ -164,6 +168,15 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       const input = schema.parse(req.body);
       const created = await createThread(pool, ctx, input);
       if (!created) return errorJson(res, 500, "Failed to create thread.");
+
+      // Emit socket event for real-time update
+      const io = getIO();
+      if (io && created.participants) {
+        for (const p of created.participants) {
+          io.to(`user:${p.id}`).emit("thread:created", created);
+        }
+      }
+
       return res.status(201).json(created);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
@@ -200,6 +213,13 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       const input = schema.parse(req.body);
       const created = await sendMessage(pool, ctx, threadId, input);
       if (!created) return errorJson(res, 404, "Thread not found.");
+
+      // Emit socket event for real-time update
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("message:created", created);
+      }
+
       return res.status(201).json(created);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
@@ -231,6 +251,13 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
       const patch = schema.parse(req.body);
       const updated = await updateThread(pool, ctx, threadId, patch);
       if (!updated) return errorJson(res, 404, "Thread not found.");
+
+      // Emit socket event for real-time update
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("thread:updated", updated);
+      }
+
       return res.json(updated);
     } catch (e) {
       if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
@@ -286,6 +313,17 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
 
       const result = await markThreadRead(pool, ctx, threadId);
       if (!result) return errorJson(res, 404, "Thread not found.");
+
+      // Emit socket event for real-time update
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("thread:read", {
+          threadId,
+          actorId: ctx.actorId,
+          readAt: new Date().toISOString(),
+        });
+      }
+
       return res.json(result);
     } catch (e) {
       const hint = hintForDbError(e);
@@ -294,8 +332,151 @@ export function registerMessagingRoutes({ app, pool, noStore, logger }) {
     }
   });
 
+  router.delete("/threads/:threadId/messages/:messageId", async (req, res) => {
+    try {
+      const ctx = req.messagingCtx;
+      const threadId = String(req.params.threadId || "");
+      const messageId = String(req.params.messageId || "");
+      if (!threadId) return errorJson(res, 400, "Missing threadId.");
+      if (!messageId) return errorJson(res, 400, "Missing messageId.");
+
+      const result = await deleteMessage(pool, ctx, threadId, messageId);
+      if (!result.ok) {
+        const status = result.error === "Thread not found." || result.error === "Message not found." ? 404 : 403;
+        return errorJson(res, status, result.error);
+      }
+
+      // Emit socket event for real-time update
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("message:deleted", {
+          threadId,
+          messageId,
+          deletedBy: ctx.actorId,
+          deletedAt: new Date().toISOString(),
+        });
+      }
+
+      return res.status(204).end();
+    } catch (e) {
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "DELETE /messaging/threads/:threadId/messages/:messageId failed");
+      return errorJson(res, 500, hint ?? "Failed to delete message.");
+    }
+  });
+
+  router.post("/threads/:threadId/messages/:messageId/reactions", async (req, res) => {
+    const schema = z.object({
+      emoji: z.string().trim().min(1).max(12),
+    });
+
+    try {
+      const ctx = req.messagingCtx;
+      const threadId = String(req.params.threadId || "");
+      const messageId = String(req.params.messageId || "");
+      if (!threadId) return errorJson(res, 400, "Missing threadId.");
+      if (!messageId) return errorJson(res, 400, "Missing messageId.");
+
+      const input = schema.parse(req.body);
+      const result = await addReaction(pool, ctx, threadId, messageId, input.emoji);
+      if (!result.ok) {
+        const status = result.error === "Thread not found." || result.error === "Message not found." ? 404 : 403;
+        return errorJson(res, status, result.error);
+      }
+
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("message:reaction", {
+          threadId,
+          messageId,
+          reactions: result.reactions ?? {},
+        });
+      }
+
+      return res.json({ ok: true, reactions: result.reactions ?? {} });
+    } catch (e) {
+      if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "POST /messaging/threads/:threadId/messages/:messageId/reactions failed");
+      return errorJson(res, 500, hint ?? "Failed to add reaction.");
+    }
+  });
+
+  router.delete("/threads/:threadId/messages/:messageId/reactions", async (req, res) => {
+    try {
+      const ctx = req.messagingCtx;
+      const threadId = String(req.params.threadId || "");
+      const messageId = String(req.params.messageId || "");
+      const emoji = String(req.query.emoji ?? "").trim();
+      if (!threadId) return errorJson(res, 400, "Missing threadId.");
+      if (!messageId) return errorJson(res, 400, "Missing messageId.");
+      if (!emoji) return errorJson(res, 400, "Missing emoji.");
+
+      const result = await removeReaction(pool, ctx, threadId, messageId, emoji);
+      if (!result.ok) {
+        const status = result.error === "Thread not found." || result.error === "Message not found." ? 404 : 403;
+        return errorJson(res, status, result.error);
+      }
+
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit("message:reaction", {
+          threadId,
+          messageId,
+          reactions: result.reactions ?? {},
+        });
+      }
+
+      return res.json({ ok: true, reactions: result.reactions ?? {} });
+    } catch (e) {
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "DELETE /messaging/threads/:threadId/messages/:messageId/reactions failed");
+      return errorJson(res, 500, hint ?? "Failed to remove reaction.");
+    }
+  });
+
+  router.patch("/messages/:messageId/status", async (req, res) => {
+    const schema = z.object({
+      status: z.enum(["queued", "sent", "delivered", "read", "failed"]),
+    });
+
+    try {
+      const ctx = req.messagingCtx;
+      const messageId = String(req.params.messageId || "");
+      if (!messageId) return errorJson(res, 400, "Missing messageId.");
+
+      const input = schema.parse(req.body);
+      const result = await updateMessageStatus(pool, {
+        orgId: ctx.orgId,
+        messageId,
+        status: input.status,
+      });
+
+      if (!result.ok) {
+        return errorJson(res, 404, result.error);
+      }
+
+      // Emit socket event for real-time status update
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${result.message.threadId}`).emit("message:status", {
+          threadId: result.message.threadId,
+          messageId: result.message.id,
+          status: result.message.deliveryStatus,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      return res.json(result.message);
+    } catch (e) {
+      if (e instanceof z.ZodError) return errorJson(res, 400, e.issues[0]?.message ?? "Invalid input.");
+      const hint = hintForDbError(e);
+      logger?.error?.({ err: e }, "PATCH /messaging/messages/:messageId/status failed");
+      return errorJson(res, 500, hint ?? "Failed to update status.");
+    }
+  });
+
   // TODO: integrate auth via Clerk and RBAC enforcement.
-  // TODO (Prompt 4): realtime, delivery provider jobs, notifications.
 
   app.use("/messaging", router);
   app.use("/api/messaging", router);

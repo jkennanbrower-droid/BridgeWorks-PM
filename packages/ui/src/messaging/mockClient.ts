@@ -577,6 +577,7 @@ function seedStore(viewer: ViewerContext): MockStore {
     "We’re on it. If anything changes, reply anytime.",
     "Can you share a photo so we can triage faster?",
   ];
+  const reactionPalette = ["👍", "🎉", "❤️", "😄", "😮"];
 
   const addAudit = (threadId: string, input: Omit<AuditEvent, "id">) => {
     const event: AuditEvent = { id: newId("ae"), ...input };
@@ -680,6 +681,14 @@ function seedStore(viewer: ViewerContext): MockStore {
         message.attachments = addAttachments(thread.id, message.id, senderId, [
           { fileName: "walkthrough.mp4", mimeType: "video/mp4", sizeBytes: 12_400_000 },
         ]);
+      }
+      if (i % 8 === 0) {
+        const emoji = reactionPalette[(i + index) % reactionPalette.length]!;
+        const secondary = reactionPalette[(i + index + 2) % reactionPalette.length]!;
+        message.reactions = { [emoji]: Array.from(new Set([viewer.actorId, otherId])) };
+        if (i % 16 === 0) {
+          message.reactions[secondary] = [otherId];
+        }
       }
 
       addMessage(thread.id, message);
@@ -946,6 +955,77 @@ export class MockMessagingClient implements MessagingClient {
     ];
 
     this.persist();
+  }
+
+  async editMessage(threadId: string, messageId: string, body: string): Promise<void> {
+    const thread = this.store.threadsById[threadId];
+    if (!thread) throw new Error("Thread not found");
+
+    const list = this.store.messagesByThreadId[threadId] ?? [];
+    const message = list.find((m) => m.id === messageId);
+    if (!message) return;
+
+    const updatedAt = nowIso();
+    message.body = body;
+    message.editedAt = updatedAt;
+    message.editedById = this.viewer.actorId;
+
+    thread.updatedAt = updatedAt;
+    if (list[list.length - 1]?.id === messageId) {
+      thread.lastMessagePreview = body.trim().slice(0, 140);
+    }
+
+    this.store.auditByThreadId[threadId] = [
+      ...(this.store.auditByThreadId[threadId] ?? []),
+      {
+        id: newId("ae"),
+        threadId,
+        type: "message.edited",
+        actorId: this.viewer.actorId,
+        actorLabel: this.store.participantsById[this.viewer.actorId]?.name ?? "You",
+        createdAt: updatedAt,
+        meta: { messageId },
+      },
+    ];
+
+    this.persist();
+  }
+
+  async addReaction(threadId: string, messageId: string, emoji: string): Promise<void> {
+    const list = this.store.messagesByThreadId[threadId] ?? [];
+    const message = list.find((m) => m.id === messageId);
+    if (!message) return;
+
+    const current = { ...(message.reactions ?? {}) };
+    const next = new Set(current[emoji] ?? []);
+    next.add(this.viewer.actorId);
+    current[emoji] = Array.from(next);
+    message.reactions = current;
+
+    this.persist();
+  }
+
+  async removeReaction(threadId: string, messageId: string, emoji: string): Promise<void> {
+    const list = this.store.messagesByThreadId[threadId] ?? [];
+    const message = list.find((m) => m.id === messageId);
+    if (!message?.reactions) return;
+
+    const current = { ...message.reactions };
+    const next = (current[emoji] ?? []).filter((id) => id !== this.viewer.actorId);
+    if (next.length) {
+      current[emoji] = next;
+    } else {
+      delete current[emoji];
+    }
+    message.reactions = Object.keys(current).length ? current : undefined;
+
+    this.persist();
+  }
+
+  async getReadReceipts(_threadId: string): Promise<{
+    receipts: Array<{ userId: string; displayName: string; lastReadAt: string }>;
+  }> {
+    return { receipts: [] };
   }
 
   async updateThread(

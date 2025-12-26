@@ -118,6 +118,248 @@ enum MessagingNotifyPreference {
   muted
 }
 
+// ============================================================================
+// LEASING PIPELINE v4.0 - Phase 1 Enums
+// ============================================================================
+
+enum LeaseApplicationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  NEEDS_INFO
+  DECISIONED
+  CONVERTED
+  CLOSED
+
+  @@map("lease_application_status")
+}
+
+enum LeaseApplicationType {
+  INDIVIDUAL
+  JOINT
+  HOUSEHOLD_GROUP
+
+  @@map("lease_application_type")
+}
+
+enum PartyRole {
+  PRIMARY
+  CO_APPLICANT
+  OCCUPANT
+  GUARANTOR
+
+  @@map("party_role")
+}
+
+enum PartyStatus {
+  INVITED
+  IN_PROGRESS
+  COMPLETE
+  LOCKED
+
+  @@map("party_status")
+}
+
+enum PaymentIntentType {
+  APPLICATION_FEE
+  HOLDING_DEPOSIT
+  MOVE_IN_FUNDS
+
+  @@map("payment_intent_type")
+}
+
+enum PaymentIntentStatus {
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELED
+
+  @@map("payment_intent_status")
+}
+
+enum ApplicationFeeStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+
+  @@map("application_fee_status")
+}
+
+enum RefundPolicyType {
+  FULL_REFUND
+  PARTIAL_REFUND
+  NO_REFUND
+  TIME_BASED
+
+  @@map("refund_policy_type")
+}
+
+enum RefundRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  PROCESSED
+  FAILED
+
+  @@map("refund_request_status")
+}
+
+enum UnitReservationKind {
+  SCREENING_LOCK
+  SOFT_HOLD
+  HARD_HOLD
+
+  @@map("unit_reservation_kind")
+}
+
+enum UnitReservationStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+  CONVERTED
+
+  @@map("unit_reservation_status")
+}
+
+enum ScreeningDepth {
+  FULL
+  CRIMINAL_ONLY
+  CREDIT_ONLY
+  SOFT_CREDIT
+  VERIFICATION_ONLY
+
+  @@map("screening_depth")
+}
+
+enum PriorityLevel {
+  STANDARD
+  PRIORITY
+  EMERGENCY
+
+  @@map("priority_level")
+}
+
+enum RelocationStatus {
+  LOCAL
+  OUT_OF_STATE_EMPLOYED
+  OUT_OF_STATE_JOB_OFFER
+  OTHER
+
+  @@map("relocation_status")
+}
+
+enum NoteVisibility {
+  INTERNAL_STAFF_ONLY
+  SHARED_WITH_APPLICANT
+  SHARED_WITH_PARTIES
+  PUBLIC
+
+  @@map("note_visibility")
+}
+
+enum DecisionOutcome {
+  APPROVED
+  APPROVED_WITH_CONDITIONS
+  DENIED
+  PENDING_REVIEW
+
+  @@map("decision_outcome")
+}
+
+enum RequirementType {
+  DOCUMENT
+  SCREENING
+  PAYMENT
+  SIGNATURE
+  VERIFICATION
+  CUSTOM
+
+  @@map("requirement_type")
+}
+
+enum RequirementStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  WAIVED
+  EXPIRED
+
+  @@map("requirement_status")
+}
+
+enum DocumentType {
+  GOVERNMENT_ID
+  PROOF_OF_INCOME
+  BANK_STATEMENT
+  TAX_RETURN
+  EMPLOYMENT_LETTER
+  REFERENCE_LETTER
+  PET_DOCUMENTATION
+  VEHICLE_REGISTRATION
+  INSURANCE_CERTIFICATE
+  OTHER
+
+  @@map("document_type")
+}
+
+enum DocumentVerificationStatus {
+  UPLOADED
+  VERIFIED
+  REJECTED
+  EXPIRED
+
+  @@map("document_verification_status")
+}
+
+enum InfoRequestStatus {
+  OPEN
+  RESPONDED
+  CANCELED
+
+  @@map("info_request_status")
+}
+
+enum OverrideRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+
+  @@map("override_request_status")
+}
+
+enum AuditEventType {
+  APPLICATION_CREATED
+  APPLICATION_SUBMITTED
+  APPLICATION_STATUS_CHANGED
+  PARTY_INVITED
+  PARTY_JOINED
+  PARTY_COMPLETED
+  DOCUMENT_UPLOADED
+  DOCUMENT_VERIFIED
+  PAYMENT_INITIATED
+  PAYMENT_COMPLETED
+  PAYMENT_FAILED
+  SCREENING_STARTED
+  SCREENING_COMPLETED
+  DECISION_MADE
+  DECISION_OVERRIDDEN
+  RESERVATION_CREATED
+  RESERVATION_RELEASED
+  RESERVATION_EXPIRED
+  REFUND_REQUESTED
+  REFUND_PROCESSED
+  NOTE_ADDED
+  OVERRIDE_REQUESTED
+  OVERRIDE_APPROVED
+  OVERRIDE_DENIED
+
+  @@map("audit_event_type")
+}
+
 model Test {
   id        Int      @id @default(autoincrement()) @map("Test #")
   createdAt DateTime @default(now()) @map("Created at") @db.Timestamptz(6)
@@ -160,32 +402,45 @@ model Person {
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   lastLoginAt  DateTime?     @map("last_login_at") @db.Timestamptz(6)
 
-  auditLogs AuditLog[]
-  memberships OrgMembership[]
+  auditLogs          AuditLog[]
+  memberships        OrgMembership[]
+  applicationParties ApplicationParty[]
 
   @@map("people")
 }
 
 model Organization {
-  id                      String       @id @default(uuid()) @db.Uuid
+  id                      String        @id @default(uuid()) @db.Uuid
   name                    String
   slug                    String
-  status                  OrgStatus    @default(active)
-  primaryContactEmail     String?      @map("primary_contact_email")
+  status                  OrgStatus     @default(active)
+  primaryContactEmail     String?       @map("primary_contact_email")
   healthStatus            HealthStatus? @map("health_status")
-  createdAt               DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt               DateTime?    @map("deleted_at") @db.Timestamptz(6)
-  onboardingApplicationId String?      @unique @map("onboarding_application_id") @db.Uuid
+  createdAt               DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt               DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  onboardingApplicationId String?       @unique @map("onboarding_application_id") @db.Uuid
 
-  invites Invite[]
-  memberships OrgMembership[]
-  messagingThreads MessagingThread[]
-  messagingThreadParticipants MessagingThreadParticipant[]
-  messagingMessages MessagingMessage[]
-  messagingAttachments MessagingAttachment[]
-  messagingThreadAuditEvents MessagingThreadAuditEvent[]
-  messagingThreadFollowers MessagingThreadFollower[]
+  invites                        Invite[]
+  memberships                    OrgMembership[]
+  messagingThreads               MessagingThread[]
+  messagingThreadParticipants    MessagingThreadParticipant[]
+  messagingMessages              MessagingMessage[]
+  messagingAttachments           MessagingAttachment[]
+  messagingThreadAuditEvents     MessagingThreadAuditEvent[]
+  messagingThreadFollowers       MessagingThreadFollower[]
+  leaseApplications              LeaseApplication[]
+  documents                      Document[]
+  paymentIntents                 PaymentIntent[]
+  refundPolicies                 RefundPolicy[]
+  workflowConfigs                WorkflowConfig[]
+  screeningConsentTemplates      ScreeningConsentTemplate[]
+  unitReservations               UnitReservation[]
+  waitlistEntries                WaitlistEntry[]
+  seasonalPolicies               SeasonalPolicy[]
+  concurrentApplicationGroups    ConcurrentApplicationGroup[]
+  overrideRequests               OverrideRequest[]
+  leaseAuditEvents               LeaseAuditEvent[]
 
   @@map("organizations")
 }
@@ -261,26 +516,26 @@ model AppSession {
 }
 
 model MessagingThread {
-  id               String                  @id @default(uuid()) @db.Uuid
-  orgId            String                  @map("org_id") @db.Uuid
-  kind             MessagingThreadKind
-  title            String                  @db.Text
-  status           MessagingThreadStatus
-  priority         MessagingThreadPriority
-  channelDefault   MessagingChannel        @map("channel_default")
-  propertyId       String?                 @map("property_id") @db.Text
-  unitId           String?                 @map("unit_id") @db.Text
-  assigneeId       String?                 @map("assignee_id") @db.Text
-  assigneeLabel    String?                 @map("assignee_label") @db.Text
-  tags             String[]                @default([]) @map("tags")
-  dueDate          DateTime?               @map("due_date") @db.Timestamptz(6)
-  slaDueAt         DateTime?               @map("sla_due_at") @db.Timestamptz(6)
-  linkedWorkOrderId String?                @map("linked_work_order_id") @db.Text
-  linkedTaskId     String?                 @map("linked_task_id") @db.Text
-  lastMessagePreview String?               @map("last_message_preview") @db.Text
-  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt        DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  id                 String                  @id @default(uuid()) @db.Uuid
+  orgId              String                  @map("org_id") @db.Uuid
+  kind               MessagingThreadKind
+  title              String                  @db.Text
+  status             MessagingThreadStatus
+  priority           MessagingThreadPriority
+  channelDefault     MessagingChannel        @map("channel_default")
+  propertyId         String?                 @map("property_id") @db.Text
+  unitId             String?                 @map("unit_id") @db.Text
+  assigneeId         String?                 @map("assignee_id") @db.Text
+  assigneeLabel      String?                 @map("assignee_label") @db.Text
+  tags               String[]                @default([]) @map("tags")
+  dueDate            DateTime?               @map("due_date") @db.Timestamptz(6)
+  slaDueAt           DateTime?               @map("sla_due_at") @db.Timestamptz(6)
+  linkedWorkOrderId  String?                 @map("linked_work_order_id") @db.Text
+  linkedTaskId       String?                 @map("linked_task_id") @db.Text
+  lastMessagePreview String?                 @map("last_message_preview") @db.Text
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(6)
 
   organization Organization                @relation(fields: [orgId], references: [id])
   participants MessagingThreadParticipant[]
@@ -297,21 +552,21 @@ model MessagingThread {
 }
 
 model MessagingThreadParticipant {
-  id               String                  @id @default(uuid()) @db.Uuid
-  threadId         String                  @map("thread_id") @db.Uuid
-  orgId            String                  @map("org_id") @db.Uuid
-  participantId    String                  @map("participant_id") @db.Text
-  role             String                  @db.Text
-  displayName      String                  @map("display_name") @db.Text
-  avatarUrl        String?                 @map("avatar_url") @db.Text
-  lastReadAt       DateTime?               @map("last_read_at") @db.Timestamptz(6)
-  flagged          Boolean                 @default(false) @map("flagged")
+  id               String                    @id @default(uuid()) @db.Uuid
+  threadId         String                    @map("thread_id") @db.Uuid
+  orgId            String                    @map("org_id") @db.Uuid
+  participantId    String                    @map("participant_id") @db.Text
+  role             String                    @db.Text
+  displayName      String                    @map("display_name") @db.Text
+  avatarUrl        String?                   @map("avatar_url") @db.Text
+  lastReadAt       DateTime?                 @map("last_read_at") @db.Timestamptz(6)
+  flagged          Boolean                   @default(false) @map("flagged")
   notifyPreference MessagingNotifyPreference @default(immediate) @map("notify_preference")
-  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization                @relation(fields: [orgId], references: [id])
-  thread       MessagingThread             @relation(fields: [threadId], references: [id])
+  organization Organization    @relation(fields: [orgId], references: [id])
+  thread       MessagingThread @relation(fields: [threadId], references: [id])
 
   @@unique([threadId, participantId])
   @@index([orgId, participantId])
@@ -320,21 +575,24 @@ model MessagingThreadParticipant {
 }
 
 model MessagingMessage {
-  id               String                @id @default(uuid()) @db.Uuid
-  orgId            String                @map("org_id") @db.Uuid
-  threadId         String                @map("thread_id") @db.Uuid
-  senderId         String                @map("sender_id") @db.Text
-  senderLabel      String                @map("sender_label") @db.Text
-  body             String                @db.Text
-  channel          MessagingChannel
-  internalOnly     Boolean               @default(false) @map("internal_only")
-  scheduledFor     DateTime?             @map("scheduled_for") @db.Timestamptz(6)
-  deliveryStatus   MessagingDeliveryStatus @default(sent) @map("delivery_status")
-  deliveryUpdatedAt DateTime?            @map("delivery_updated_at") @db.Timestamptz(6)
-  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String                  @id @default(uuid()) @db.Uuid
+  orgId             String                  @map("org_id") @db.Uuid
+  threadId          String                  @map("thread_id") @db.Uuid
+  senderId          String                  @map("sender_id") @db.Text
+  senderLabel       String                  @map("sender_label") @db.Text
+  body              String                  @db.Text
+  channel           MessagingChannel
+  internalOnly      Boolean                 @default(false) @map("internal_only")
+  scheduledFor      DateTime?               @map("scheduled_for") @db.Timestamptz(6)
+  deliveryStatus    MessagingDeliveryStatus @default(sent) @map("delivery_status")
+  deliveryUpdatedAt DateTime?               @map("delivery_updated_at") @db.Timestamptz(6)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt         DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  deletedById       String?                 @map("deleted_by_id") @db.Text
+  deletedForEveryone Boolean                @default(true) @map("deleted_for_everyone")
 
-  organization Organization             @relation(fields: [orgId], references: [id])
-  thread       MessagingThread          @relation(fields: [threadId], references: [id])
+  organization Organization          @relation(fields: [orgId], references: [id])
+  thread       MessagingThread       @relation(fields: [threadId], references: [id])
   attachments  MessagingAttachment[]
 
   @@index([threadId, createdAt])
@@ -344,22 +602,22 @@ model MessagingMessage {
 }
 
 model MessagingAttachment {
-  id          String   @id @default(uuid()) @db.Uuid
-  orgId       String   @map("org_id") @db.Uuid
-  threadId    String   @map("thread_id") @db.Uuid
-  messageId   String?  @map("message_id") @db.Uuid
-  fileName    String   @map("file_name") @db.Text
-  mimeType    String   @map("mime_type") @db.Text
-  sizeBytes   BigInt   @map("size_bytes") @db.BigInt
-  uploadedById String  @map("uploaded_by_id") @db.Text
-  uploadedAt  DateTime @map("uploaded_at") @db.Timestamptz(6)
-  storageKey  String?  @map("storage_key") @db.Text
-  publicUrl   String?  @map("public_url") @db.Text
-  scanStatus  String?  @map("scan_status") @db.Text
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  threadId     String   @map("thread_id") @db.Uuid
+  messageId    String?  @map("message_id") @db.Uuid
+  fileName     String   @map("file_name") @db.Text
+  mimeType     String   @map("mime_type") @db.Text
+  sizeBytes    BigInt   @map("size_bytes") @db.BigInt
+  uploadedById String   @map("uploaded_by_id") @db.Text
+  uploadedAt   DateTime @map("uploaded_at") @db.Timestamptz(6)
+  storageKey   String?  @map("storage_key") @db.Text
+  publicUrl    String?  @map("public_url") @db.Text
+  scanStatus   String?  @map("scan_status") @db.Text
 
-  organization Organization  @relation(fields: [orgId], references: [id])
-  thread       MessagingThread @relation(fields: [threadId], references: [id])
-  message      MessagingMessage? @relation(fields: [messageId], references: [id])
+  organization Organization       @relation(fields: [orgId], references: [id])
+  thread       MessagingThread    @relation(fields: [threadId], references: [id])
+  message      MessagingMessage?  @relation(fields: [messageId], references: [id])
 
   @@index([threadId, uploadedAt])
   @@index([messageId])
@@ -376,7 +634,7 @@ model MessagingThreadAuditEvent {
   meta       Json?    @db.JsonB
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  organization Organization   @relation(fields: [orgId], references: [id])
+  organization Organization    @relation(fields: [orgId], references: [id])
   thread       MessagingThread @relation(fields: [threadId], references: [id])
 
   @@index([threadId, createdAt])
@@ -385,15 +643,627 @@ model MessagingThreadAuditEvent {
 }
 
 model MessagingThreadFollower {
-  id         String   @id @default(uuid()) @db.Uuid
-  orgId      String   @map("org_id") @db.Uuid
-  threadId   String   @map("thread_id") @db.Uuid
-  followerId String   @map("follower_id") @db.Text
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @map("org_id") @db.Uuid
+  threadId   String @map("thread_id") @db.Uuid
+  followerId String @map("follower_id") @db.Text
 
-  organization Organization  @relation(fields: [orgId], references: [id])
+  organization Organization    @relation(fields: [orgId], references: [id])
   thread       MessagingThread @relation(fields: [threadId], references: [id])
 
   @@unique([threadId, followerId])
   @@index([followerId])
   @@map("messaging_thread_followers")
+}
+
+// ============================================================================
+// LEASING PIPELINE v4.0 - Phase 1 Models
+// ============================================================================
+
+/// Core application entity for leasing pipeline
+model LeaseApplication {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  orgId                  String                 @map("org_id") @db.Uuid
+  propertyId             String                 @map("property_id") @db.Uuid
+  unitId                 String?                @map("unit_id") @db.Uuid
+  applicationType        LeaseApplicationType   @map("application_type")
+  status                 LeaseApplicationStatus @default(DRAFT)
+  priority               PriorityLevel          @default(STANDARD)
+  screeningDepth         ScreeningDepth         @default(FULL) @map("screening_depth")
+  relocationStatus       RelocationStatus?      @map("relocation_status")
+  desiredMoveInDate      DateTime?              @map("desired_move_in_date") @db.Date
+  desiredLeaseTermMonths Int?                   @map("desired_lease_term_months")
+  duplicateCheckHash     String?                @map("duplicate_check_hash") @db.VarChar(64)
+  unitAvailabilitySnapshot    Json?   @map("unit_availability_snapshot") @db.JsonB
+  unitAvailabilityVerifiedAt  DateTime? @map("unit_availability_verified_at") @db.Timestamptz(6)
+  unitWasAvailableAtSubmit    Boolean? @map("unit_was_available_at_submit")
+  applicationFeeStatus  ApplicationFeeStatus @default(PENDING) @map("application_fee_status")
+  submittedAt            DateTime?              @map("submitted_at") @db.Timestamptz(6)
+  expiresAt              DateTime?              @map("expires_at") @db.Timestamptz(6)
+  decisionedAt           DateTime?              @map("decisioned_at") @db.Timestamptz(6)
+  convertedAt            DateTime?              @map("converted_at") @db.Timestamptz(6)
+  closedAt               DateTime?              @map("closed_at") @db.Timestamptz(6)
+  closedReason           String?                @map("closed_reason") @db.Text
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?              @map("deleted_at") @db.Timestamptz(6)
+
+  organization           Organization                       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parties                ApplicationParty[]
+  draftSessions          ApplicationDraftSession[]
+  requirements           RequirementItem[]
+  infoRequests           InfoRequest[]
+  paymentIntents         PaymentIntent[]
+  reservations           UnitReservation[]
+  decisionRecords        DecisionRecord[]
+  riskAssessments        RiskAssessment[]
+  scores                 ApplicationScore[]
+  notes                  Note[]
+  auditEvents            LeaseAuditEvent[]
+  concurrentGroupMembers ConcurrentApplicationGroupMember[]
+
+  @@index([orgId, status])
+  @@index([orgId, propertyId])
+  @@index([orgId, unitId])
+  @@index([duplicateCheckHash, createdAt])
+  @@index([orgId, createdAt])
+  @@map("lease_applications")
+}
+
+/// Party/applicant within an application
+model ApplicationParty {
+  id                         String       @id @default(uuid()) @db.Uuid
+  applicationId              String       @map("application_id") @db.Uuid
+  personId                   String?      @map("person_id") @db.Uuid
+  role                       PartyRole
+  status                     PartyStatus  @default(INVITED)
+  email                      String       @db.VarChar(255)
+  firstName                  String?      @map("first_name") @db.VarChar(100)
+  lastName                   String?      @map("last_name") @db.VarChar(100)
+  phone                      String?      @db.VarChar(20)
+  inviteToken                String?      @unique @map("invite_token") @db.VarChar(64)
+  inviteSentAt               DateTime?    @map("invite_sent_at") @db.Timestamptz(6)
+  joinedAt                   DateTime?    @map("joined_at") @db.Timestamptz(6)
+  completedAt                DateTime?    @map("completed_at") @db.Timestamptz(6)
+  lockedAt                   DateTime?    @map("locked_at") @db.Timestamptz(6)
+  screeningConsentAt         DateTime?    @map("screening_consent_at") @db.Timestamptz(6)
+  screeningConsentTemplateId String?      @map("screening_consent_template_id") @db.Uuid
+  screeningConsentTemplateVersion Int?    @map("screening_consent_template_version")
+  screeningConsentIp         String?      @map("screening_consent_ip") @db.VarChar(45)
+  screeningConsentSignature  Json?        @map("screening_consent_signature") @db.JsonB
+  createdAt                  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application              LeaseApplication          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  person                   Person?                   @relation(fields: [personId], references: [id], onDelete: SetNull)
+  screeningConsentTemplate ScreeningConsentTemplate? @relation(fields: [screeningConsentTemplateId], references: [id])
+  draftSessions            ApplicationDraftSession[]
+  documents                Document[]
+  requirements             RequirementItem[]
+  infoRequests             InfoRequest[]
+
+  @@index([applicationId, role])
+  @@index([personId])
+  @@index([email])
+  @@map("application_parties")
+}
+
+/// Draft session for saving incomplete application progress
+model ApplicationDraftSession {
+  id             String   @id @default(uuid()) @db.Uuid
+  applicationId  String   @map("application_id") @db.Uuid
+  partyId        String?  @map("party_id") @db.Uuid
+  sessionToken   String   @unique @map("session_token") @db.VarChar(64)
+  formData       Json     @map("form_data") @db.JsonB
+  progressMap    Json?    @map("progress_map") @db.JsonB
+  currentStep    String?  @map("current_step") @db.VarChar(50)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  lastActivityAt DateTime @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  lastSavedAt    DateTime? @map("last_saved_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application LeaseApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  party       ApplicationParty? @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([partyId])
+  @@index([expiresAt])
+  @@map("application_draft_sessions")
+}
+
+/// Requirement item for tracking application completion
+model RequirementItem {
+  id              String            @id @default(uuid()) @db.Uuid
+  applicationId   String            @map("application_id") @db.Uuid
+  partyId         String?           @map("party_id") @db.Uuid
+  infoRequestId   String?           @map("info_request_id") @db.Uuid
+  requirementType RequirementType   @map("requirement_type")
+  status          RequirementStatus @default(PENDING)
+  name            String            @db.VarChar(255)
+  description     String?           @db.Text
+  isRequired      Boolean           @default(true) @map("is_required")
+  sortOrder       Int               @default(0) @map("sort_order")
+  dueDate         DateTime?         @map("due_date") @db.Timestamptz(6)
+  completedAt     DateTime?         @map("completed_at") @db.Timestamptz(6)
+  waivedAt        DateTime?         @map("waived_at") @db.Timestamptz(6)
+  waivedById      String?           @map("waived_by_id") @db.Uuid
+  waivedReason    String?           @map("waived_reason") @db.Text
+  metadata        Json?             @db.JsonB
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application LeaseApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  party       ApplicationParty? @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  infoRequest InfoRequest?      @relation(fields: [infoRequestId], references: [id], onDelete: SetNull)
+  documents   Document[]
+
+  @@index([applicationId, status])
+  @@index([partyId])
+  @@index([infoRequestId])
+  @@map("requirement_items")
+}
+
+/// Information request for additional applicant data
+model InfoRequest {
+  id            String            @id @default(uuid()) @db.Uuid
+  orgId         String            @map("org_id") @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  partyId       String?           @map("party_id") @db.Uuid
+  status        InfoRequestStatus @default(OPEN)
+  message       String?           @db.Text
+  requestedItems Json?            @map("requested_items") @db.JsonB
+  unlockScopes  Json?             @map("unlock_scopes") @db.JsonB
+  respondedAt   DateTime?         @map("responded_at") @db.Timestamptz(6)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  application  LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  party        ApplicationParty? @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  requirements RequirementItem[]
+
+  @@index([applicationId, status])
+  @@index([orgId, status])
+  @@index([partyId])
+  @@map("info_requests")
+}
+
+/// Document uploaded for application
+model Document {
+  id                String       @id @default(uuid()) @db.Uuid
+  orgId             String       @map("org_id") @db.Uuid
+  partyId           String       @map("party_id") @db.Uuid
+  requirementItemId String?      @map("requirement_item_id") @db.Uuid
+  documentType      DocumentType @map("document_type")
+  fileName          String       @map("file_name") @db.VarChar(255)
+  mimeType          String       @map("mime_type") @db.VarChar(100)
+  sizeBytes         BigInt       @map("size_bytes")
+  storageKey        String       @map("storage_key") @db.Text
+  publicUrl         String?      @map("public_url") @db.Text
+  scanStatus        String?      @map("scan_status") @db.VarChar(20)
+  scanResult        Json?        @map("scan_result") @db.JsonB
+  verificationStatus DocumentVerificationStatus @default(UPLOADED) @map("verification_status")
+  verifiedAt        DateTime?    @map("verified_at") @db.Timestamptz(6)
+  verifiedById      String?      @map("verified_by_id") @db.Uuid
+  rejectedAt        DateTime?    @map("rejected_at") @db.Timestamptz(6)
+  rejectedById      String?      @map("rejected_by_id") @db.Uuid
+  rejectedReason    String?      @map("rejected_reason") @db.Text
+  validFrom         DateTime?    @map("valid_from") @db.Timestamptz(6)
+  validUntil        DateTime?    @map("valid_until") @db.Timestamptz(6)
+  expiredAt         DateTime?    @map("expired_at") @db.Timestamptz(6)
+  uploadedAt        DateTime     @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  party           ApplicationParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  requirementItem RequirementItem? @relation(fields: [requirementItemId], references: [id], onDelete: SetNull)
+
+  @@index([partyId])
+  @@index([orgId, documentType])
+  @@index([validUntil])
+  @@index([requirementItemId])
+  @@map("documents")
+}
+
+/// Payment intent for application fees, deposits
+model PaymentIntent {
+  id                    String              @id @default(uuid()) @db.Uuid
+  orgId                 String              @map("org_id") @db.Uuid
+  applicationId         String              @map("application_id") @db.Uuid
+  paymentType           PaymentIntentType   @map("payment_type")
+  status                PaymentIntentStatus @default(REQUIRES_ACTION)
+  amountCents           Int                 @map("amount_cents")
+  currency              String              @default("USD") @db.VarChar(3)
+  provider              String?             @db.VarChar(30)
+  providerReference     String?             @map("provider_reference") @db.VarChar(255)
+  providerClientSecret  String?             @map("provider_client_secret") @db.VarChar(255)
+  stripePaymentIntentId String?             @unique @map("stripe_payment_intent_id") @db.VarChar(255)
+  stripeCustomerId      String?             @map("stripe_customer_id") @db.VarChar(255)
+  description           String?             @db.Text
+  metadata              Json?               @db.JsonB
+  attemptsCount         Int                 @default(0) @map("attempts_count")
+  lastFailureCode       String?             @map("last_failure_code") @db.VarChar(50)
+  lastFailureMessage    String?             @map("last_failure_message") @db.Text
+  lastFailureAt         DateTime?           @map("last_failure_at") @db.Timestamptz(6)
+  paidAt                DateTime?           @map("paid_at") @db.Timestamptz(6)
+  failedAt              DateTime?           @map("failed_at") @db.Timestamptz(6)
+  failureReason         String?             @map("failure_reason") @db.Text
+  canceledAt            DateTime?           @map("canceled_at") @db.Timestamptz(6)
+  canceledReason        String?             @map("canceled_reason") @db.Text
+  refundPolicyId        String?             @map("refund_policy_id") @db.Uuid
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization   Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  application    LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  refundPolicy   RefundPolicy?    @relation(fields: [refundPolicyId], references: [id])
+  refundRequests RefundRequest[]
+  attempts       PaymentIntentAttempt[]
+
+  @@index([applicationId, paymentType])
+  @@index([orgId, status])
+  @@index([stripePaymentIntentId])
+  @@map("payment_intents")
+}
+
+model PaymentIntentAttempt {
+  id                String              @id @default(uuid()) @db.Uuid
+  paymentIntentId   String              @map("payment_intent_id") @db.Uuid
+  attemptNumber     Int                 @map("attempt_number")
+  status            PaymentIntentStatus
+  provider          String              @db.VarChar(30)
+  providerReference String?             @map("provider_reference") @db.VarChar(255)
+  failureCode       String?             @map("failure_code") @db.VarChar(50)
+  failureMessage    String?             @map("failure_message") @db.Text
+  requestPayload    Json?               @map("request_payload") @db.JsonB
+  responsePayload   Json?               @map("response_payload") @db.JsonB
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentIntentId, attemptNumber])
+  @@map("payment_intent_attempts")
+}
+
+/// Refund policy configuration
+model RefundPolicy {
+  id                String           @id @default(uuid()) @db.Uuid
+  orgId             String           @map("org_id") @db.Uuid
+  name              String           @db.VarChar(100)
+  version           Int              @default(1)
+  policyType        RefundPolicyType @map("policy_type")
+  description       String?          @db.Text
+  jurisdictionCode  String?          @map("jurisdiction_code") @db.VarChar(10)
+  paymentType       PaymentIntentType? @map("payment_type")
+  refundPercentage  Int?             @map("refund_percentage")
+  refundWindowHours Int?             @map("refund_window_hours")
+  conditions        Json?            @db.JsonB
+  isActive          Boolean          @default(true) @map("is_active")
+  effectiveAt       DateTime         @default(now()) @map("effective_at") @db.Timestamptz(6)
+  expiredAt         DateTime?        @map("expired_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  paymentIntents PaymentIntent[]
+
+  @@index([orgId, isActive])
+  @@index([orgId, jurisdictionCode, paymentType, effectiveAt])
+  @@unique([orgId, jurisdictionCode, paymentType, version])
+  @@map("refund_policies")
+}
+
+/// Versioned leasing workflow configuration (org-scoped with optional property/jurisdiction scoping)
+model WorkflowConfig {
+  id               String    @id @default(uuid()) @db.Uuid
+  orgId            String    @map("org_id") @db.Uuid
+  propertyId       String?   @map("property_id") @db.Uuid
+  jurisdictionCode String?   @map("jurisdiction_code") @db.VarChar(10)
+  version          Int       @default(1)
+  config           Json      @db.JsonB
+  effectiveAt      DateTime  @default(now()) @map("effective_at") @db.Timestamptz(6)
+  expiredAt        DateTime? @map("expired_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, propertyId, jurisdictionCode, effectiveAt])
+  @@index([orgId, effectiveAt])
+  @@unique([orgId, propertyId, jurisdictionCode, version])
+  @@map("workflow_configs")
+}
+
+/// Refund request for a payment
+model RefundRequest {
+  id                   String              @id @default(uuid()) @db.Uuid
+  paymentIntentId      String              @map("payment_intent_id") @db.Uuid
+  status               RefundRequestStatus @default(PENDING)
+  requestedAmountCents Int                 @map("requested_amount_cents")
+  approvedAmountCents  Int?                @map("approved_amount_cents")
+  reason               String              @db.Text
+  requestedById        String              @map("requested_by_id") @db.Uuid
+  reviewedById         String?             @map("reviewed_by_id") @db.Uuid
+  reviewedAt           DateTime?           @map("reviewed_at") @db.Timestamptz(6)
+  reviewNotes          String?             @map("review_notes") @db.Text
+  stripeRefundId       String?             @map("stripe_refund_id") @db.VarChar(255)
+  processedAt          DateTime?           @map("processed_at") @db.Timestamptz(6)
+  failedAt             DateTime?           @map("failed_at") @db.Timestamptz(6)
+  failureReason        String?             @map("failure_reason") @db.Text
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentIntentId])
+  @@index([status])
+  @@map("refund_requests")
+}
+
+/// Screening consent template
+model ScreeningConsentTemplate {
+  id          String    @id @default(uuid()) @db.Uuid
+  orgId       String?   @map("org_id") @db.Uuid
+  version     Int       @default(1)
+  name        String    @db.VarChar(100)
+  content     String    @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  effectiveAt DateTime  @default(now()) @map("effective_at") @db.Timestamptz(6)
+  expiredAt   DateTime? @map("expired_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization?      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parties      ApplicationParty[]
+
+  @@unique([orgId, version])
+  @@index([orgId, isActive])
+  @@map("screening_consent_templates")
+}
+
+/// Unit reservation/hold for application
+model UnitReservation {
+  id             String                @id @default(uuid()) @db.Uuid
+  orgId          String                @map("org_id") @db.Uuid
+  applicationId  String                @map("application_id") @db.Uuid
+  unitId         String                @map("unit_id") @db.Uuid
+  kind           UnitReservationKind
+  status         UnitReservationStatus @default(ACTIVE)
+  expiresAt      DateTime?             @map("expires_at") @db.Timestamptz(6)
+  releasedAt     DateTime?             @map("released_at") @db.Timestamptz(6)
+  releasedById   String?               @map("released_by_id") @db.Uuid
+  releaseReasonCode String?            @map("release_reason_code") @db.VarChar(50)
+  releasedReason String?               @map("released_reason") @db.Text
+  convertedAt    DateTime?             @map("converted_at") @db.Timestamptz(6)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  application  LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([unitId, status])
+  @@index([orgId, unitId, kind, status])
+  @@map("unit_reservations")
+}
+
+/// Decision record for application approval/denial
+model DecisionRecord {
+  id                 String          @id @default(uuid()) @db.Uuid
+  applicationId      String          @map("application_id") @db.Uuid
+  version            Int             @default(1)
+  outcome            DecisionOutcome
+  decisionDate       DateTime        @default(now()) @map("decision_date") @db.Timestamptz(6)
+  decidedById        String          @map("decided_by_id") @db.Uuid
+  conditions         Json?           @db.JsonB
+  notes              String?         @db.Text
+  riskAssessmentId   String?         @map("risk_assessment_id") @db.Uuid
+  overrideRequestId  String?         @map("override_request_id") @db.Uuid
+  isOverride         Boolean         @default(false) @map("is_override")
+  previousDecisionId String?         @map("previous_decision_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application      LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  riskAssessment   RiskAssessment?  @relation(fields: [riskAssessmentId], references: [id])
+  overrideRequest  OverrideRequest? @relation(fields: [overrideRequestId], references: [id])
+  previousDecision DecisionRecord?  @relation("DecisionHistory", fields: [previousDecisionId], references: [id])
+  nextDecisions    DecisionRecord[] @relation("DecisionHistory")
+
+  @@index([applicationId, version])
+  @@index([decidedById])
+  @@map("decision_records")
+}
+
+/// Risk assessment stub (v0)
+model RiskAssessment {
+  id                 String   @id @default(uuid()) @db.Uuid
+  applicationId      String   @map("application_id") @db.Uuid
+  assessmentData     Json     @map("assessment_data") @db.JsonB
+  riskScore          Int?     @map("risk_score")
+  riskLevel          String?  @map("risk_level") @db.VarChar(20)
+  factors            Json?    @db.JsonB
+  recommendedOutcome String?  @map("recommended_outcome") @db.VarChar(50)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application     LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  decisionRecords DecisionRecord[]
+
+  @@index([applicationId])
+  @@map("risk_assessments")
+}
+
+/// Application score stub (v0)
+model ApplicationScore {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  scoreType     String   @map("score_type") @db.VarChar(50)
+  scoreValue    Int      @map("score_value")
+  maxScore      Int?     @map("max_score")
+  factors       Json?    @db.JsonB
+  calculatedAt  DateTime @default(now()) @map("calculated_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  application LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, scoreType])
+  @@map("application_scores")
+}
+
+/// Waitlist entry stub (v0)
+model WaitlistEntry {
+  id                     String    @id @default(uuid()) @db.Uuid
+  orgId                  String    @map("org_id") @db.Uuid
+  propertyId             String    @map("property_id") @db.Uuid
+  unitTypeId             String?   @map("unit_type_id") @db.Uuid
+  contactEmail           String    @map("contact_email") @db.VarChar(255)
+  contactName            String?   @map("contact_name") @db.VarChar(200)
+  contactPhone           String?   @map("contact_phone") @db.VarChar(20)
+  desiredMoveIn          DateTime? @map("desired_move_in") @db.Date
+  preferences            Json?     @db.JsonB
+  priority               Int       @default(0)
+  position               Int?
+  notifiedAt             DateTime? @map("notified_at") @db.Timestamptz(6)
+  expiredAt              DateTime? @map("expired_at") @db.Timestamptz(6)
+  convertedApplicationId String?   @map("converted_application_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, propertyId, priority])
+  @@index([contactEmail])
+  @@map("waitlist_entries")
+}
+
+/// Note on application
+model Note {
+  id            String         @id @default(uuid()) @db.Uuid
+  applicationId String         @map("application_id") @db.Uuid
+  authorId      String         @map("author_id") @db.Uuid
+  visibility    NoteVisibility @default(INTERNAL_STAFF_ONLY)
+  content       String         @db.Text
+  isPinned      Boolean        @default(false) @map("is_pinned")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  application LeaseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, visibility])
+  @@index([applicationId, isPinned])
+  @@map("notes")
+}
+
+/// Seasonal policy for property/org
+model SeasonalPolicy {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  propertyId  String?  @map("property_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  policyRules Json     @map("policy_rules") @db.JsonB
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isActive])
+  @@index([propertyId, startDate, endDate])
+  @@map("seasonal_policies")
+}
+
+/// Group of concurrent applications (same unit competition)
+model ConcurrentApplicationGroup {
+  id         String    @id @default(uuid()) @db.Uuid
+  orgId      String    @map("org_id") @db.Uuid
+  unitId     String    @map("unit_id") @db.Uuid
+  isActive   Boolean   @default(true) @map("is_active")
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  winnerId   String?   @map("winner_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization                       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members      ConcurrentApplicationGroupMember[]
+
+  @@index([orgId, unitId, isActive])
+  @@map("concurrent_application_groups")
+}
+
+/// Member of concurrent application group
+model ConcurrentApplicationGroupMember {
+  id            String   @id @default(uuid()) @db.Uuid
+  groupId       String   @map("group_id") @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  rank          Int?
+  isWinner      Boolean  @default(false) @map("is_winner")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  group       ConcurrentApplicationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  application LeaseApplication           @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, applicationId])
+  @@index([applicationId])
+  @@map("concurrent_application_group_members")
+}
+
+/// Override request for decision
+model OverrideRequest {
+  id               String                @id @default(uuid()) @db.Uuid
+  orgId            String                @map("org_id") @db.Uuid
+  applicationId    String                @map("application_id") @db.Uuid
+  requestedById    String                @map("requested_by_id") @db.Uuid
+  status           OverrideRequestStatus @default(PENDING)
+  originalOutcome  DecisionOutcome       @map("original_outcome")
+  requestedOutcome DecisionOutcome       @map("requested_outcome")
+  justification    String                @db.Text
+  reviewedById     String?               @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?             @map("reviewed_at") @db.Timestamptz(6)
+  reviewNotes      String?               @map("review_notes") @db.Text
+  expiresAt        DateTime?             @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  decisionRecords DecisionRecord[]
+
+  @@index([applicationId, status])
+  @@index([orgId, status])
+  @@map("override_requests")
+}
+
+/// Audit event for leasing pipeline
+model LeaseAuditEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  orgId         String         @map("org_id") @db.Uuid
+  applicationId String?        @map("application_id") @db.Uuid
+  eventType     AuditEventType @map("event_type")
+  actorId       String         @map("actor_id") @db.Uuid
+  actorType     String         @map("actor_type") @db.VarChar(20)
+  targetType    String?        @map("target_type") @db.VarChar(50)
+  targetId      String?        @map("target_id") @db.Uuid
+  previousState Json?          @map("previous_state") @db.JsonB
+  newState      Json?          @map("new_state") @db.JsonB
+  metadata      Json?          @db.JsonB
+  ipAddress     String?        @map("ip_address") @db.VarChar(45)
+  userAgent     String?        @map("user_agent") @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  application  LeaseApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, createdAt])
+  @@index([orgId, eventType, createdAt])
+  @@index([actorId, createdAt])
+  @@map("lease_audit_events")
 }

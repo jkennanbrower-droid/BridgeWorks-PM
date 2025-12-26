@@ -36,6 +36,10 @@ export interface MessagingClient {
     },
   ): Promise<Message>;
   deleteMessage(threadId: string, messageId: string): Promise<void>;
+  editMessage(threadId: string, messageId: string, body: string): Promise<void>;
+  addReaction(threadId: string, messageId: string, emoji: string): Promise<void>;
+  removeReaction(threadId: string, messageId: string, emoji: string): Promise<void>;
+  getReadReceipts(threadId: string): Promise<{ receipts: Array<{ userId: string; displayName: string; lastReadAt: string }> }>;
   updateThread(
     threadId: string,
     patch: Partial<

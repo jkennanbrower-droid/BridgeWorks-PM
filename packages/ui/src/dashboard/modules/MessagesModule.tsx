@@ -6,7 +6,9 @@ import {
 } from "./messages/ThreadDetailsPanel";
 
 import { ensureDemoSession, getDemoUsers } from "../demoSession";
+import { messagingFlags } from "../../messaging/flags";
 import { useMessagingClient } from "../../messaging/useMessagingClient";
+import { useMessagingSocket } from "../../messaging/useMessagingSocket";
 import { buildViewerContext } from "../../messaging/viewerContext";
 import type {
   AuditEvent,
@@ -20,6 +22,10 @@ import type {
   ThreadStatus,
   ViewerContext,
 } from "../../messaging/types";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
 function findDemoActorIdForOrg(input: {
   appId: "staff" | "user" | "org";
@@ -88,6 +94,8 @@ function ChevronDownIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+const REACTION_CHOICES = ["👍", "🎉", "❤️", "😄", "😮", "🙏"];
 
 function formatTimestampShort(iso: string) {
   const date = new Date(iso);
@@ -328,6 +336,8 @@ function MessageBubble({
   onDeleteForMe,
   onDeleteForEveryone,
   canDeleteForEveryone,
+  onEdit,
+  canEdit,
   selectMode,
   selected,
   onToggleSelected,
@@ -340,6 +350,11 @@ function MessageBubble({
   scheduledFor,
   showTimestamp,
   onToggleTimestamp,
+  editedAt,
+  reactions,
+  onAddReaction,
+  onRemoveReaction,
+  currentUserId,
 }: {
   messageId: string;
   mine: boolean;
@@ -353,6 +368,8 @@ function MessageBubble({
   onDeleteForMe?: () => void;
   onDeleteForEveryone?: () => void;
   canDeleteForEveryone?: boolean;
+  onEdit?: () => void;
+  canEdit?: boolean;
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
@@ -365,8 +382,14 @@ function MessageBubble({
   scheduledFor?: string;
   showTimestamp: boolean;
   onToggleTimestamp: (messageId: string) => void;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
+  onAddReaction?: (emoji: string) => void;
+  onRemoveReaction?: (emoji: string) => void;
+  currentUserId?: string;
 }) {
-  const isDeleted = body.trim() === "Message Deleted";
+  const trimmedBody = body.trim();
+  const isDeleted = trimmedBody === "Message Deleted" || trimmedBody === "This message was deleted.";
   const parts: Array<{ text: string; highlight?: boolean; matchIndex?: number }> =
     matches.length === 0 ? [{ text: body }] : [];
 
@@ -379,6 +402,39 @@ function MessageBubble({
     () => (attachments ?? []).filter((a) => !a.mimeType?.startsWith("image/") || !a.publicUrl),
     [attachments],
   );
+  const reactionEntries = useMemo(
+    () =>
+      Object.entries(reactions ?? {})
+        .filter(([, userIds]) => userIds?.length)
+        .sort((a, b) => b[1].length - a[1].length),
+    [reactions],
+  );
+  const canReact = Boolean(onAddReaction && onRemoveReaction && currentUserId);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const reactionPickerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!reactionPickerOpen) return;
+    if (typeof window === "undefined") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setReactionPickerOpen(false);
+    };
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (reactionPickerRef.current?.contains(target)) return;
+      setReactionPickerOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("click", onClick);
+    };
+  }, [reactionPickerOpen]);
+
+  useEffect(() => {
+    if (selectMode || isDeleted) setReactionPickerOpen(false);
+  }, [isDeleted, selectMode]);
 
   if (matches.length) {
     let cursor = 0;
@@ -395,7 +451,7 @@ function MessageBubble({
   }
 
   return (
-    <div className={`flex gap-3 ${mine ? "justify-end" : "justify-start"}`}>
+    <div className={`flex min-w-0 gap-3 ${mine ? "justify-end" : "justify-start"}`}>
       {selectMode ? (
         <div className="pt-2">
           <input
@@ -413,9 +469,11 @@ function MessageBubble({
           <AvatarCircle name={senderLabel} avatarUrl={senderAvatarUrl} size={28} />
         </div>
       ) : null}
-      <div className={`flex max-w-[760px] flex-col ${mine ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex min-w-0 max-w-[570px] flex-col ${mine ? "items-end" : "items-start"}`}
+      >
         <div
-          className={`break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
+          className={`min-w-0 max-w-full break-words rounded-2xl px-4 py-3 text-sm shadow-sm ${
             mine ? "border border-slate-200 bg-white" : "bg-slate-100"
           } ${isDeleted ? "" : "cursor-pointer"}`}
           role="button"
@@ -507,9 +565,10 @@ function MessageBubble({
           </div>
           {body.trim() ? (
             <div
-              className={`mt-2 whitespace-pre-wrap leading-6 ${
+              className={`mt-2 whitespace-pre-wrap break-words leading-6 ${
                 isDeleted ? "italic text-slate-400" : "text-slate-800"
               }`}
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
             >
               {parts.map((p, i) =>
                 p.highlight ? (
@@ -600,6 +659,85 @@ function MessageBubble({
             </div>
           ) : null}
         </div>
+        {!selectMode && !isDeleted && (reactionEntries.length || canReact) ? (
+          <div ref={reactionPickerRef} className="relative mt-2 flex flex-wrap items-center gap-2">
+            {reactionEntries.map(([emoji, userIds]) => {
+              const reacted = currentUserId ? userIds.includes(currentUserId) : false;
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    if (!canReact) return;
+                    if (reacted) {
+                      onRemoveReaction?.(emoji);
+                    } else {
+                      onAddReaction?.(emoji);
+                    }
+                  }}
+                  aria-pressed={reacted}
+                  disabled={!canReact}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold shadow-sm transition ${
+                    reacted
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  } ${canReact ? "" : "cursor-default opacity-70"}`}
+                  title={`${reacted ? "Remove" : "Add"} ${emoji}`}
+                >
+                  <span className="text-base">{emoji}</span>
+                  <span>{userIds.length}</span>
+                </button>
+              );
+            })}
+            {canReact ? (
+              <button
+                type="button"
+                onClick={() => setReactionPickerOpen((open) => !open)}
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed text-sm font-semibold transition ${
+                  reactionPickerOpen
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                }`}
+                aria-label="Add reaction"
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            ) : null}
+            {reactionPickerOpen ? (
+              <div
+                className={`absolute top-full z-20 mt-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl ${
+                  mine ? "right-0" : "left-0"
+                }`}
+                role="menu"
+              >
+                {REACTION_CHOICES.map((emoji) => {
+                  const reacted = currentUserId ? (reactions?.[emoji] ?? []).includes(currentUserId) : false;
+                  return (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        if (reacted) {
+                          onRemoveReaction?.(emoji);
+                        } else {
+                          onAddReaction?.(emoji);
+                        }
+                        setReactionPickerOpen(false);
+                      }}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition ${
+                        reacted ? "bg-slate-900 text-white" : "hover:bg-slate-100"
+                      }`}
+                      aria-label={`React with ${emoji}`}
+                      role="menuitem"
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {showTimestamp ? (
           <p className="mt-1 text-xs text-slate-400">{formatTimestampShort(createdAt)}</p>
         ) : null}
@@ -664,6 +802,8 @@ export function MessagesModule({
   const legacyHiddenMessagesStorageKey = `bw.messages.hidden.v1.${viewer.appId}.${viewer.actorId}`;
 
   const client = useMessagingClient(viewer);
+  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  const socketEnabled = Boolean(apiBaseUrl) && messagingFlags.useApi;
 
   const [threadDetailsOpen, setThreadDetailsOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -725,6 +865,8 @@ export function MessagesModule({
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [expandedTimestampMessageIds, setExpandedTimestampMessageIds] = useState<string[]>([]);
   const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+  const [sendPending, setSendPending] = useState(false);
+  const sendInFlightRef = useRef(false);
 
   const [uiHydratedKey, setUiHydratedKey] = useState<string | null>(null);
   const [hiddenHydratedKey, setHiddenHydratedKey] = useState<string | null>(null);
@@ -851,6 +993,106 @@ export function MessagesModule({
   useEffect(() => {
     void refreshThreads();
   }, [refreshThreads]);
+
+  const handleMessageCreated = useCallback(
+    (message: Message) => {
+      if (!message?.threadId) return;
+      if (message.internalOnly && !viewer.isStaffView) return;
+
+      if (message.threadId === activeThreadId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          const next = [...prev, message];
+          next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          return next;
+        });
+      }
+
+      void refreshAllThreads();
+      void refreshThreads();
+    },
+    [activeThreadId, refreshAllThreads, refreshThreads, viewer.isStaffView],
+  );
+
+  const handleMessageDeleted = useCallback(
+    (data: { threadId: string; messageId: string; deletedBy: string; deletedAt: string }) => {
+      if (!data?.threadId || !data.messageId) return;
+      if (data.threadId === activeThreadId) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? {
+                  ...m,
+                  body: "Message Deleted",
+                  deletedAt: data.deletedAt,
+                  deletedById: data.deletedBy,
+                  deletedForEveryone: true,
+                  attachments: [],
+                }
+              : m,
+          ),
+        );
+      }
+      void refreshAllThreads();
+      void refreshThreads();
+    },
+    [activeThreadId, refreshAllThreads, refreshThreads],
+  );
+
+  const handleMessageStatus = useCallback(
+    (data: { threadId: string; messageId: string; status: string; updatedAt: string }) => {
+      if (!data?.messageId) return;
+      if (data.threadId !== activeThreadId) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? {
+                ...m,
+                delivery: {
+                  status: data.status as NonNullable<Message["delivery"]>["status"],
+                  updatedAt: data.updatedAt,
+                },
+              }
+            : m,
+        ),
+      );
+    },
+    [activeThreadId],
+  );
+
+  const handleMessageReaction = useCallback(
+    (data: { threadId: string; messageId: string; reactions: Record<string, string[]> }) => {
+      if (!data?.messageId) return;
+      if (data.threadId !== activeThreadId) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === data.messageId ? { ...m, reactions: data.reactions } : m)),
+      );
+    },
+    [activeThreadId],
+  );
+
+  const handleThreadCreated = useCallback(() => {
+    void refreshAllThreads();
+    void refreshThreads();
+  }, [refreshAllThreads, refreshThreads]);
+
+  const handleThreadUpdated = useCallback(() => {
+    void refreshAllThreads();
+    void refreshThreads();
+  }, [refreshAllThreads, refreshThreads]);
+
+  useMessagingSocket({
+    apiBaseUrl,
+    userId: viewer.actorId,
+    threadId: activeThreadId ?? undefined,
+    enabled: socketEnabled,
+    onMessageCreated: handleMessageCreated,
+    onMessageDeleted: handleMessageDeleted,
+    onMessageStatus: handleMessageStatus,
+    onMessageReaction: handleMessageReaction,
+    onThreadCreated: handleThreadCreated,
+    onThreadUpdated: handleThreadUpdated,
+  });
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -1208,11 +1450,23 @@ export function MessagesModule({
   }, [updateMessageListHasMore, messages.length]);
 
   const sendMessage = useCallback(async () => {
+    if (sendInFlightRef.current) return;
+    if (!activeThread || activeThread.archivedAt) return;
+    const body = composerBody.trim();
+    if (!body && composerFiles.length === 0) return;
+
+    sendInFlightRef.current = true;
+    setSendPending(true);
+
+    const priorFiles = composerFiles;
+    const priorFileNames = new Map(composerFileNames);
+    const priorScheduledFor = scheduledFor;
+
+    let optimisticId: string | null = null;
+
     try {
-      if (!activeThread) return;
-      if (activeThread.archivedAt) return;
-      const body = composerBody.trim();
-      if (!body && composerFiles.length === 0) return;
+      const now = new Date();
+      const scheduledIso = scheduledFor ? new Date(scheduledFor).toISOString() : undefined;
       const attachments = composerFiles.map((f) => {
         const isImage = (f.type || "").startsWith("image/");
         const publicUrl =
@@ -1228,31 +1482,43 @@ export function MessagesModule({
           file: f,
         };
       });
+      const payloadBody =
+        body ||
+        attachments
+          .map((a) => a.fileName)
+          .filter(Boolean)
+          .join(", ") ||
+        "(attachment)";
 
-      if (attachments.length) {
-        const attachmentsBody = body
-          ? ""
-          : attachments
-              .map((a) => a.fileName)
-              .filter(Boolean)
-              .join(", ") || "(attachment)";
+      optimisticId = `temp_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+      const optimisticAttachments = attachments.map((a, index) => ({
+        id: `temp_att_${optimisticId}_${index}`,
+        threadId: activeThread.id,
+        messageId: optimisticId,
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes,
+        uploadedAt: now.toISOString(),
+        uploadedById: viewer.actorId,
+        storageKey: a.storageKey,
+        publicUrl: a.publicUrl,
+      }));
+      const optimisticMessage: Message = {
+        id: optimisticId,
+        threadId: activeThread.id,
+        senderId: viewer.actorId,
+        senderLabel: activeThreadParticipantById.get(viewer.actorId)?.name ?? "You",
+        body: payloadBody,
+        createdAt: now.toISOString(),
+        channel: "portal",
+        scheduledFor: scheduledIso,
+        delivery: {
+          status: scheduledIso ? "queued" : "sent",
+          updatedAt: now.toISOString(),
+        },
+        attachments: optimisticAttachments.length ? optimisticAttachments : undefined,
+      };
 
-        await client.sendMessage(activeThread.id, {
-          body: attachmentsBody,
-          channel: "portal",
-          scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-          attachments,
-        });
-      }
-
-      if (body) {
-        await client.sendMessage(activeThread.id, {
-          body,
-          channel: "portal",
-          scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-          attachments: [],
-        });
-      }
       setComposerBody("");
       setComposerFiles([]);
       setScheduledFor("");
@@ -1260,15 +1526,47 @@ export function MessagesModule({
       setBulkDeleteMode(false);
       setSelectedMessageIds([]);
       setConfirmBulkDelete(null);
-      await refreshAllThreads();
-      await refreshThreads();
-      const { messages: next } = await client.listMessages(activeThread.id);
-      setMessages(next);
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === optimisticId)) return prev;
+        const next = [...prev, optimisticMessage];
+        next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        return next;
+      });
+
+      const created = await client.sendMessage(activeThread.id, {
+        body: payloadBody,
+        channel: "portal",
+        scheduledFor: scheduledIso,
+        attachments,
+      });
+
+      setMessages((prev) => {
+        const next = prev
+          .map((m) => (m.id === created.id ? created : m))
+          .filter((m) => m.id !== optimisticId);
+        if (!next.some((m) => m.id === created.id)) next.push(created);
+        next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        return next;
+      });
+
+      void refreshAllThreads();
+      void refreshThreads();
     } catch (e) {
       console.error(e);
+      if (optimisticId) {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      }
+      setComposerBody(body);
+      setComposerFiles(priorFiles);
+      setComposerFileNames(priorFileNames);
+      setScheduledFor(priorScheduledFor);
       if (typeof window !== "undefined") {
         window.alert("Message failed to send.");
       }
+    } finally {
+      sendInFlightRef.current = false;
+      setSendPending(false);
     }
   }, [
     activeThread,
@@ -1277,9 +1575,11 @@ export function MessagesModule({
     composerFileNames,
     composerFiles,
     getComposerFileId,
+    activeThreadParticipantById,
     refreshAllThreads,
     refreshThreads,
     scheduledFor,
+    viewer.actorId,
   ]);
 
   const matchData = useMemo(() => {
@@ -1347,6 +1647,56 @@ export function MessagesModule({
       prev.includes(messageId) ? prev.filter((id) => id !== messageId) : [...prev, messageId],
     );
   }, []);
+
+  const updateMessageReaction = useCallback(
+    (messageId: string, emoji: string, action: "add" | "remove") => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const current = { ...(m.reactions ?? {}) };
+          const list = new Set(current[emoji] ?? []);
+          if (action === "add") {
+            list.add(viewer.actorId);
+          } else {
+            list.delete(viewer.actorId);
+          }
+          const nextList = Array.from(list);
+          if (nextList.length) {
+            current[emoji] = nextList;
+          } else {
+            delete current[emoji];
+          }
+          const nextReactions = Object.keys(current).length ? current : undefined;
+          return { ...m, reactions: nextReactions };
+        }),
+      );
+    },
+    [viewer.actorId],
+  );
+
+  const addReaction = useCallback(
+    async (threadId: string, messageId: string, emoji: string) => {
+      updateMessageReaction(messageId, emoji, "add");
+      try {
+        await client.addReaction(threadId, messageId, emoji);
+      } catch {
+        updateMessageReaction(messageId, emoji, "remove");
+      }
+    },
+    [client, updateMessageReaction],
+  );
+
+  const removeReaction = useCallback(
+    async (threadId: string, messageId: string, emoji: string) => {
+      updateMessageReaction(messageId, emoji, "remove");
+      try {
+        await client.removeReaction(threadId, messageId, emoji);
+      } catch {
+        updateMessageReaction(messageId, emoji, "add");
+      }
+    },
+    [client, updateMessageReaction],
+  );
 
   const pendingScrollToBottomThreadIdRef = useRef<string | null>(null);
 
@@ -1813,6 +2163,10 @@ export function MessagesModule({
                               selectMode={bulkDeleteMode}
                               selected={selectedMessageIds.includes(m.id)}
                               onToggleSelected={() => toggleSelectedMessage(m.id)}
+                              reactions={m.reactions}
+                              onAddReaction={(emoji) => addReaction(m.threadId, m.id, emoji)}
+                              onRemoveReaction={(emoji) => removeReaction(m.threadId, m.id, emoji)}
+                              currentUserId={viewer.actorId}
                               menuOpen={openMessageMenuId === m.id}
                               onToggleMenu={() =>
                                 setOpenMessageMenuId((prevId) => (prevId === m.id ? null : m.id))
@@ -2004,7 +2358,7 @@ export function MessagesModule({
                       aria-label="Message actions"
                       onClick={() => setComposerActionsOpen((v) => !v)}
                       className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300"
-                      disabled={!activeThread || activeThreadArchived}
+                      disabled={!activeThread || activeThreadArchived || sendPending}
                     >
                     <svg
                       aria-hidden="true"
@@ -2087,7 +2441,7 @@ export function MessagesModule({
                     input.click();
                     }}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300"
-                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
+                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode || sendPending}
                   >
                   <svg
                     aria-hidden="true"
@@ -2114,11 +2468,14 @@ export function MessagesModule({
                     onChange={(e) => setComposerBody(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
+                      if (e.repeat) return;
+                      if (e.nativeEvent.isComposing) return;
+                      if (sendPending) return;
                       e.preventDefault();
                       void sendMessage();
                     }}
                     className="w-full bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
+                    disabled={!activeThread || activeThreadArchived || bulkDeleteMode || sendPending}
                   />
                 </div>
                 <button
@@ -2126,7 +2483,7 @@ export function MessagesModule({
                   aria-label="Send message"
                   onClick={() => void sendMessage()}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
-                  disabled={!activeThread || activeThreadArchived || bulkDeleteMode}
+                  disabled={!activeThread || activeThreadArchived || bulkDeleteMode || sendPending}
                 >
                   <PaperPlaneIcon />
                   Send

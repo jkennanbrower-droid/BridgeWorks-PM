@@ -11,7 +11,8 @@
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "studio": "prisma studio",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "test": "node --test --import tsx src/leasing/policyResolution.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",

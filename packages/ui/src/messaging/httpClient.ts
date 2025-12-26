@@ -249,9 +249,51 @@ export class HttpMessagingClient implements MessagingClient {
     });
   }
 
-  async deleteMessage(_threadId: string, _messageId: string): Promise<void> {
-    // TODO: implement delete semantics (deferred).
-    throw new Error("Delete not implemented.");
+  async deleteMessage(threadId: string, messageId: string): Promise<void> {
+    await this.apiFetch(
+      `/messaging/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async editMessage(threadId: string, messageId: string, body: string): Promise<void> {
+    await this.apiJson(
+      `/messaging/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body }),
+      },
+    );
+  }
+
+  async addReaction(threadId: string, messageId: string, emoji: string): Promise<void> {
+    await this.apiJson(
+      `/messaging/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/reactions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      },
+    );
+  }
+
+  async removeReaction(threadId: string, messageId: string, emoji: string): Promise<void> {
+    const qs = `?emoji=${encodeURIComponent(emoji)}`;
+    await this.apiJson(
+      `/messaging/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/reactions${qs}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async getReadReceipts(threadId: string): Promise<{
+    receipts: Array<{ userId: string; displayName: string; lastReadAt: string }>;
+  }> {
+    try {
+      return await this.apiJson(`/messaging/threads/${encodeURIComponent(threadId)}/read-receipts`, { method: "GET" });
+    } catch {
+      return { receipts: [] };
+    }
   }
 
   async updateThread(threadId: string, patch: any): Promise<Thread> {

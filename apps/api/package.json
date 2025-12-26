@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test leasingApplicationsRepo.test.mjs leasingApplicationsSubmit.test.mjs leasePayments.test.mjs unitReservations.test.mjs",
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "build": "echo build api"

@@ -14,8 +14,13 @@ import pinoHttp from "pino-http";
 import pinoPretty from "pino-pretty";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import Redis from "ioredis";
 import { checkAuthClerk, checkDb, checkStorageR2 } from "./dependencyHealth.mjs";
 import { registerMessagingRoutes } from "./messagingRoutes.mjs";
+import { registerLeasingApplicationRoutes } from "./leasingApplicationsRoutes.mjs";
+import { setupSocketHandlers } from "./socketHandlers.mjs";
 
 function loadDotEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -365,7 +370,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Upload-Token, X-OPS-KEY, X-Demo-App-Id, X-Demo-Org-Id, X-Demo-Actor-Id, X-Demo-Role, X-Demo-Session-Id",
@@ -1144,7 +1149,16 @@ const pool = new pg.Pool({
       : undefined,
 });
 
-registerMessagingRoutes({ app, pool, noStore, logger });
+// Socket.io instance (initialized after server starts)
+let io = null;
+
+// Getter for io so routes can access the current value
+function getIO() {
+  return io;
+}
+
+registerMessagingRoutes({ app, pool, noStore, logger, getIO });
+registerLeasingApplicationRoutes({ app, pool, noStore, logger });
 
 app.get("/health/db", async (req, res) => {
   stripConditionalHeaders(req);
@@ -1847,6 +1861,44 @@ addAlias("/auth/bootstrap", "/api/auth/bootstrap", async (req, res) => {
 const port = process.env.PORT || 3103;
 const server = app.listen(port, "0.0.0.0", () => console.log("listening on", port));
 server.ref?.();
+
+// Initialize Socket.io
+io = new SocketIOServer(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow all origins in dev, or configured origins in production
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  transports: ["websocket", "polling"],
+});
+
+// Set up Redis adapter for multi-server support (if REDIS_URL is set)
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl) {
+  try {
+    const pubClient = new Redis(redisUrl);
+    const subClient = pubClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.info("Socket.io Redis adapter initialized for multi-server support");
+  } catch (e) {
+    logger.warn({ err: e }, "Failed to initialize Redis adapter, running in single-server mode");
+  }
+} else {
+  logger.info("Socket.io running in single-server mode (no REDIS_URL)");
+}
+
+// Set up socket event handlers
+setupSocketHandlers(io, logger);
+
+// Export io for routes that need it
+export { io };
 
 function shutdown(signal) {
   console.log(`\n${signal} received, shutting down...`);

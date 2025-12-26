@@ -52,6 +52,8 @@ export type Message = {
   deletedAt?: string;
   deletedById?: string;
   deletedForEveryone?: boolean;
+  editedAt?: string;
+  editedById?: string;
   delivery?: {
     status: "draft" | "queued" | "sent" | "delivered" | "read" | "failed";
     updatedAt?: string;
