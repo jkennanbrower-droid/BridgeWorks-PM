@@ -94,11 +94,28 @@ async function readJsonOrText(res: Response): Promise<any> {
 export class HttpMessagingClient implements MessagingClient {
   private readonly apiBase: string;
   private readonly viewer: ViewerContext;
+  private readonly apiBaseAlreadyIncludesApiPrefix: boolean;
 
   constructor(viewer: ViewerContext) {
     const apiBaseRaw = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
     this.apiBase = normalizeBaseUrl(apiBaseRaw);
     this.viewer = viewer;
+    this.apiBaseAlreadyIncludesApiPrefix = (() => {
+      try {
+        const url = new URL(this.apiBase);
+        const path = url.pathname.replace(/\/+$/, "");
+        return path === "/api";
+      } catch {
+        return this.apiBase.replace(/\/+$/, "").endsWith("/api");
+      }
+    })();
+  }
+
+  private normalizeApiPath(path: string) {
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    if (this.apiBaseAlreadyIncludesApiPrefix) return normalized;
+    if (normalized === "/api" || normalized.startsWith("/api/")) return normalized;
+    return `/api${normalized}`;
   }
 
   private demoHeaders(): Record<string, string> {
@@ -116,7 +133,7 @@ export class HttpMessagingClient implements MessagingClient {
     const headers = new Headers(init.headers ?? {});
     Object.entries(this.demoHeaders()).forEach(([k, v]) => headers.set(k, v));
     if (!headers.has("accept")) headers.set("accept", "application/json");
-    return await fetch(`${this.apiBase}${path}`, { ...init, headers });
+    return await fetch(`${this.apiBase}${this.normalizeApiPath(path)}`, { ...init, headers });
   }
 
   private async apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {

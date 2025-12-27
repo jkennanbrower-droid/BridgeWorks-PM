@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 
-import { createScreeningLock } from "./unitReservationsRepo.mjs";
+import { createScreeningLock, releaseReservationsForApplication } from "./unitReservationsRepo.mjs";
+import {
+  createRefundRequestWithDecision,
+  evaluateRefundForPayment,
+} from "./leasingRefundsRepo.mjs";
 
 const DRAFT_LOOKBACK_DAYS = 7;
 const SESSION_TTL_DAYS = 30;
@@ -992,6 +996,111 @@ export async function submitApplication(pool, input) {
           }
         : null,
     };
+  });
+}
+
+export async function withdrawApplication(pool, input) {
+  const orgId = String(input.orgId || "").trim();
+  const applicationId = String(input.applicationId || "").trim();
+  if (!orgId || !applicationId) throw new Error("Missing orgId or applicationId.");
+
+  return await withTx(pool, async (db) => {
+    const applicationResult = await db.query(
+      `
+        SELECT *
+        FROM "lease_applications"
+        WHERE id = $1 AND org_id = $2
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [applicationId, orgId],
+    );
+
+    if (applicationResult.rows.length === 0) return { ok: false, errorCode: "NOT_FOUND" };
+    const application = applicationResult.rows[0];
+
+    if (application.status === "CLOSED") {
+      return { ok: false, errorCode: "ALREADY_CLOSED" };
+    }
+
+    const nowResult = await db.query("SELECT NOW() AS now");
+    const now = nowResult.rows[0]?.now ? new Date(nowResult.rows[0].now) : new Date();
+
+    await db.query(
+      `
+        UPDATE "lease_applications"
+        SET status = 'CLOSED',
+            closed_at = $2,
+            closed_reason = 'WITHDRAWN',
+            withdrawn_at = $2,
+            withdrawn_reason_code = $3,
+            withdrawn_reason = $4,
+            updated_at = $2
+        WHERE id = $1
+      `,
+      [
+        applicationId,
+        now,
+        input.reasonCode ?? null,
+        input.reason ?? null,
+      ],
+    );
+
+    await releaseReservationsForApplication(db, {
+      orgId,
+      applicationId,
+      releaseReasonCode: "WITHDRAWN",
+      releaseReason: input.reason ?? "Applicant withdrew",
+      releasedById: input.withdrawnById ?? null,
+      actorId: input.withdrawnById ?? null,
+      now,
+    });
+
+    const refundRequests = [];
+    const refundDecisions = [];
+
+    const payments = await db.query(
+      `
+        SELECT id, payment_type, status, amount_cents, paid_at
+        FROM "payment_intents"
+        WHERE application_id = $1
+      `,
+      [applicationId],
+    );
+
+    for (const payment of payments.rows) {
+      const decision = await evaluateRefundForPayment(db, {
+        orgId,
+        jurisdictionCode: input.jurisdictionCode ?? null,
+        paymentType: payment.payment_type,
+        asOfDate: now,
+        paymentIntent: {
+          paymentType: payment.payment_type,
+          status: payment.status,
+          amountCents: payment.amount_cents,
+          paidAt: payment.paid_at ?? null,
+        },
+      });
+
+      refundDecisions.push({
+        paymentIntentId: payment.id,
+        decision,
+      });
+
+      if (decision.eligible) {
+        const refundRequest = await createRefundRequestWithDecision(db, {
+          paymentIntentId: payment.id,
+          requestedById: input.withdrawnById ?? orgId,
+          requestedAmountCents: decision.eligibleAmountCents,
+          decision,
+          reason: input.reason ?? "Applicant withdrawal",
+          asOfDate: now,
+        });
+        refundRequests.push(refundRequest);
+      }
+    }
+
+    return { ok: true, refundRequests, refundDecisions };
   });
 }
 

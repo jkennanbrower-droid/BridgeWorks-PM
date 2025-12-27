@@ -20,6 +20,7 @@ import Redis from "ioredis";
 import { checkAuthClerk, checkDb, checkStorageR2 } from "./dependencyHealth.mjs";
 import { registerMessagingRoutes } from "./messagingRoutes.mjs";
 import { registerLeasingApplicationRoutes } from "./leasingApplicationsRoutes.mjs";
+import { startLeasingJobsRunner } from "./leasingAssistantJobs.mjs";
 import { setupSocketHandlers } from "./socketHandlers.mjs";
 
 function loadDotEnvFile(filePath) {
@@ -1159,6 +1160,8 @@ function getIO() {
 
 registerMessagingRoutes({ app, pool, noStore, logger, getIO });
 registerLeasingApplicationRoutes({ app, pool, noStore, logger });
+
+startLeasingJobsRunner({ pool, logger });
 
 app.get("/health/db", async (req, res) => {
   stripConditionalHeaders(req);

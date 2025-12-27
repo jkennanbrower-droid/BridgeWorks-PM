@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test leasingApplicationsRepo.test.mjs leasingApplicationsSubmit.test.mjs leasePayments.test.mjs unitReservations.test.mjs leasingRequirements.test.mjs",
+    "test": "node --test leasingApplicationsRepo.test.mjs leasingApplicationsSubmit.test.mjs leasePayments.test.mjs unitReservations.test.mjs leasingRequirements.test.mjs leasingDecisioning.test.mjs leasingWithdrawals.test.mjs phase1Audit.test.mjs",
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "build": "echo build api"

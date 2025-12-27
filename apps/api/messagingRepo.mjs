@@ -98,6 +98,16 @@ async function requireThreadAccess(db, { orgId, actorId, threadId }) {
   return thread.rows[0];
 }
 
+export async function listThreadParticipantIds(db, { orgId, threadId }) {
+  const result = await db.query(
+    `SELECT participant_id
+     FROM "messaging_thread_participants"
+     WHERE org_id = $1 AND thread_id = $2`,
+    [orgId, threadId],
+  );
+  return result.rows.map((r) => String(r.participant_id)).filter(Boolean);
+}
+
 async function fetchMessageReactions(db, { orgId, messageId }) {
   const result = await db.query(
     `SELECT COALESCE(jsonb_object_agg(emoji, users), '{}'::jsonb) AS reactions

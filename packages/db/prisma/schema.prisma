@@ -331,10 +331,26 @@ enum OverrideRequestStatus {
   @@map("override_request_status")
 }
 
+enum OverrideRequestType {
+  DECISION
+  PRIORITY
+
+  @@map("override_request_type")
+}
+
+enum IncomeCalculationMethod {
+  GROSS_MONTHLY
+  NET_MONTHLY
+  ANNUAL_GROSS
+
+  @@map("income_calculation_method")
+}
+
 enum AuditEventType {
   APPLICATION_CREATED
   APPLICATION_SUBMITTED
   APPLICATION_STATUS_CHANGED
+  APPLICATION_VIEWED
   PARTY_INVITED
   PARTY_JOINED
   PARTY_COMPLETED
@@ -703,6 +719,9 @@ model LeaseApplication {
   applicationFeeStatus  ApplicationFeeStatus @default(PENDING) @map("application_fee_status")
   submittedAt            DateTime?              @map("submitted_at") @db.Timestamptz(6)
   expiresAt              DateTime?              @map("expires_at") @db.Timestamptz(6)
+  withdrawnAt            DateTime?              @map("withdrawn_at") @db.Timestamptz(6)
+  withdrawnReasonCode    String?                @map("withdrawn_reason_code") @db.VarChar(50)
+  withdrawnReason        String?                @map("withdrawn_reason") @db.Text
   decisionedAt           DateTime?              @map("decisioned_at") @db.Timestamptz(6)
   convertedAt            DateTime?              @map("converted_at") @db.Timestamptz(6)
   closedAt               DateTime?              @map("closed_at") @db.Timestamptz(6)
@@ -749,6 +768,10 @@ model ApplicationParty {
   joinedAt                   DateTime?    @map("joined_at") @db.Timestamptz(6)
   completedAt                DateTime?    @map("completed_at") @db.Timestamptz(6)
   lockedAt                   DateTime?    @map("locked_at") @db.Timestamptz(6)
+  abandonedAt                DateTime?    @map("abandoned_at") @db.Timestamptz(6)
+  abandonedReasonCode        String?      @map("abandoned_reason_code") @db.VarChar(50)
+  reminderCount              Int          @default(0) @map("reminder_count")
+  lastReminderAt             DateTime?    @map("last_reminder_at") @db.Timestamptz(6)
   screeningConsentAt         DateTime?    @map("screening_consent_at") @db.Timestamptz(6)
   screeningConsentTemplateId String?      @map("screening_consent_template_id") @db.Uuid
   screeningConsentTemplateVersion Int?    @map("screening_consent_template_version")
@@ -1006,6 +1029,10 @@ model RefundRequest {
   id                   String              @id @default(uuid()) @db.Uuid
   paymentIntentId      String              @map("payment_intent_id") @db.Uuid
   status               RefundRequestStatus @default(PENDING)
+  policyId             String?             @map("policy_id") @db.Uuid
+  policyVersion        Int?                @map("policy_version")
+  decisionReasonCode   String?             @map("decision_reason_code") @db.VarChar(50)
+  eligibleAmountCents  Int?                @map("eligible_amount_cents")
   requestedAmountCents Int                 @map("requested_amount_cents")
   approvedAmountCents  Int?                @map("approved_amount_cents")
   reason               String              @db.Text
@@ -1024,6 +1051,7 @@ model RefundRequest {
 
   @@index([paymentIntentId])
   @@index([status])
+  @@index([policyId])
   @@map("refund_requests")
 }
 
@@ -1079,9 +1107,21 @@ model DecisionRecord {
   id                 String          @id @default(uuid()) @db.Uuid
   applicationId      String          @map("application_id") @db.Uuid
   version            Int             @default(1)
+  criteriaVersion    Int?            @map("criteria_version")
   outcome            DecisionOutcome
   decisionDate       DateTime        @default(now()) @map("decision_date") @db.Timestamptz(6)
   decidedById        String          @map("decided_by_id") @db.Uuid
+  reasonCodes        Json?           @map("reason_codes") @db.JsonB
+  incomeCalculationMethod IncomeCalculationMethod? @map("income_calculation_method")
+  incomeVerifiedMonthlyCents Int?    @map("income_verified_monthly_cents")
+  incomeVerifiedAnnualCents  Int?    @map("income_verified_annual_cents")
+  incomePassed      Boolean?         @map("income_passed")
+  incomeNotes        String?         @map("income_notes") @db.Text
+  criminalReviewStatus String?       @map("criminal_review_status") @db.VarChar(30)
+  criminalRecordSummary Json?        @map("criminal_record_summary") @db.JsonB
+  criminalReviewNotes String?        @map("criminal_review_notes") @db.Text
+  criminalReviewedAt DateTime?       @map("criminal_reviewed_at") @db.Timestamptz(6)
+  criminalReviewedById String?       @map("criminal_reviewed_by_id") @db.Uuid
   conditions         Json?           @db.JsonB
   notes              String?         @db.Text
   riskAssessmentId   String?         @map("risk_assessment_id") @db.Uuid
@@ -1246,9 +1286,12 @@ model OverrideRequest {
   orgId            String                @map("org_id") @db.Uuid
   applicationId    String                @map("application_id") @db.Uuid
   requestedById    String                @map("requested_by_id") @db.Uuid
+  requestType      OverrideRequestType   @default(DECISION) @map("request_type")
   status           OverrideRequestStatus @default(PENDING)
-  originalOutcome  DecisionOutcome       @map("original_outcome")
-  requestedOutcome DecisionOutcome       @map("requested_outcome")
+  originalOutcome  DecisionOutcome?      @map("original_outcome")
+  requestedOutcome DecisionOutcome?      @map("requested_outcome")
+  originalPriority PriorityLevel?        @map("original_priority")
+  requestedPriority PriorityLevel?       @map("requested_priority")
   justification    String                @db.Text
   reviewedById     String?               @map("reviewed_by_id") @db.Uuid
   reviewedAt       DateTime?             @map("reviewed_at") @db.Timestamptz(6)
@@ -1262,6 +1305,7 @@ model OverrideRequest {
 
   @@index([applicationId, status])
   @@index([orgId, status])
+  @@index([applicationId, requestType])
   @@map("override_requests")
 }
 

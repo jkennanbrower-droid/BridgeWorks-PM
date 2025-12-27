@@ -7,6 +7,7 @@ import { DashboardShell } from "./shell/DashboardShell";
 import { MessagesModule } from "./modules/MessagesModule";
 import { OverviewModule } from "./modules/OverviewModule";
 import { PlaceholderModule } from "./modules/PlaceholderModule";
+import { LeasingModule } from "./modules/LeasingModule";
 import type {
   DashboardAppProps,
   ModuleDef,
@@ -108,6 +109,8 @@ function DashboardContent({
           role={role}
           isStaffView={appId === "staff"}
         />
+      ) : activeModuleId === "leasing" ? (
+        <LeasingModule appId={appId} />
       ) : (
         <PlaceholderModule
           title={activeModule?.label ?? "Module"}

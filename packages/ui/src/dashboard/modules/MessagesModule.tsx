@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   ThreadDetailsPanel,
@@ -108,6 +108,40 @@ function formatTimestampShort(iso: string) {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function formatSlaLabel(iso?: string) {
+  if (!iso) return undefined;
+  const label = formatTimestampShort(iso);
+  if (label === "--") return undefined;
+  return `SLA due ${label}`;
+}
+
+const WORK_ORDER_CATEGORY_PRIORITY = [
+  "hvac",
+  "plumbing",
+  "electrical",
+  "appliance",
+  "maintenance",
+  "pest",
+  "safety",
+];
+
+function toTitleCase(value: string) {
+  return value
+    .replace(/[-_]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function inferWorkOrderCategory(thread: Thread) {
+  const tags = (thread.tags ?? []).map((tag) => tag.trim().toLowerCase());
+  const match = WORK_ORDER_CATEGORY_PRIORITY.find((category) => tags.includes(category));
+  if (match) return toTitleCase(match);
+  if (tags.length) return toTitleCase(tags[0]!);
+  return "General";
+}
+
 function formatTimestampDivider(iso: string) {
   const date = new Date(iso);
   const ms = date.getTime();
@@ -154,6 +188,13 @@ function shouldShowTimeDivider(prevIso: string | undefined, nextIso: string) {
 
 function stripParentheticals(value: string) {
   return value.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function previewSnippet(text: string, maxLen = 140) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen - 1)}…`;
 }
 
 function escapeRegExp(value: string) {
@@ -323,6 +364,23 @@ function SlaDot({ slaDueAt }: { slaDueAt?: string }) {
   );
 }
 
+function ThreadStatusPill({ status }: { status: ThreadStatus }) {
+  const tone =
+    status === "open"
+      ? "bg-sky-500/10 text-sky-800 ring-sky-500/20"
+      : status === "pending"
+        ? "bg-amber-500/10 text-amber-800 ring-amber-500/20"
+        : status === "resolved"
+          ? "bg-emerald-500/10 text-emerald-800 ring-emerald-500/20"
+          : "bg-slate-500/10 text-slate-700 ring-slate-500/20";
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ring-1 ${tone}`}>
+      {status}
+    </span>
+  );
+}
+
 function MessageBubble({
   messageId,
   mine,
@@ -343,6 +401,8 @@ function MessageBubble({
   onEditDraftChange,
   onCancelEdit,
   onSaveEdit,
+  editError,
+  editPending,
   selectMode,
   selected,
   onToggleSelected,
@@ -381,6 +441,8 @@ function MessageBubble({
   onEditDraftChange?: (next: string) => void;
   onCancelEdit?: () => void;
   onSaveEdit?: () => void | Promise<void>;
+  editError?: string;
+  editPending?: boolean;
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
@@ -623,9 +685,13 @@ function MessageBubble({
                   rows={1}
                   style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                 />
+                {editError ? (
+                  <div className="mt-2 text-xs font-semibold text-rose-700">{editError}</div>
+                ) : null}
                 <div className="mt-2 flex justify-end gap-2">
                   <button
                     type="button"
+                    disabled={Boolean(editPending)}
                     className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
                     onClick={() => onCancelEdit?.()}
                   >
@@ -633,6 +699,7 @@ function MessageBubble({
                   </button>
                   <button
                     type="button"
+                    disabled={Boolean(editPending)}
                     className="h-9 rounded-xl bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
                     onClick={() => void onSaveEdit?.()}
                   >
@@ -907,6 +974,7 @@ export function MessagesModule({
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
+  const allThreadsRef = useRef<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const activeThread = useMemo(
     () => (activeThreadId ? allThreads.find((t) => t.id === activeThreadId) ?? null : null),
@@ -930,6 +998,7 @@ export function MessagesModule({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<string>("");
   const [editPending, setEditPending] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState<{
@@ -940,6 +1009,8 @@ export function MessagesModule({
 
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messageListBottomRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollToBottomThreadIdRef = useRef<string | null>(null);
   const [threadListHasMore, setThreadListHasMore] = useState(false);
   const [messageListHasMore, setMessageListHasMore] = useState(false);
 
@@ -1020,6 +1091,20 @@ export function MessagesModule({
     return [...map.entries()].map(([id, label]) => ({ id, label }));
   }, [allThreads]);
 
+  const workOrders = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; category?: string }>();
+    allThreads.forEach((thread) => {
+      if (!thread.linkedWorkOrderId) return;
+      if (map.has(thread.linkedWorkOrderId)) return;
+      map.set(thread.linkedWorkOrderId, {
+        id: thread.linkedWorkOrderId,
+        label: thread.linkedWorkOrderId,
+        category: inferWorkOrderCategory(thread),
+      });
+    });
+    return Array.from(map.values());
+  }, [allThreads]);
+
   const participants = useMemo(() => {
     const anyClient = client as unknown as { getParticipants?: () => import("../../messaging/types").Participant[] };
     return anyClient.getParticipants?.() ?? [];
@@ -1073,12 +1158,101 @@ export function MessagesModule({
     setAllThreads([...byId.values()]);
   }, [client]);
 
+  useEffect(() => {
+    allThreadsRef.current = allThreads;
+  }, [allThreads]);
+
   const refreshThreads = useCallback(async () => {
     const result = await client.listThreads(query);
     setThreads(result.threads);
     setSelectedThreadIds((prev) => prev.filter((id) => result.threads.some((t) => t.id === id)));
     setActiveThreadId((prev) => (prev && result.threads.some((t) => t.id === prev) ? prev : null));
   }, [client, query]);
+
+  const sortThreadsForQuery = useCallback(
+    (list: Thread[]) => {
+      const sortKey = query.sortKey ?? "updated_desc";
+      const toMs = (iso?: string) => {
+        const t = iso ? new Date(iso).getTime() : Number.NaN;
+        return Number.isNaN(t) ? 0 : t;
+      };
+      const priorityRank: Record<ThreadPriority, number> = {
+        urgent: 4,
+        high: 3,
+        normal: 2,
+        low: 1,
+      };
+
+      const next = [...list];
+      next.sort((a, b) => {
+        if (sortKey === "updated_desc") return toMs(b.updatedAt) - toMs(a.updatedAt);
+        if (sortKey === "updated_asc") return toMs(a.updatedAt) - toMs(b.updatedAt);
+        if (sortKey === "sla_asc") return toMs(a.slaDueAt) - toMs(b.slaDueAt) || toMs(b.updatedAt) - toMs(a.updatedAt);
+        if (sortKey === "priority_desc")
+          return (
+            (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0) ||
+            toMs(b.updatedAt) - toMs(a.updatedAt)
+          );
+        return 0;
+      });
+      return next;
+    },
+    [query.sortKey],
+  );
+
+  const applyMessageToThreadLists = useCallback(
+    (message: Message) => {
+      const threadId = message.threadId;
+      const updatedAt = message.createdAt || new Date().toISOString();
+      const lastMessagePreview = previewSnippet(message.body, 140);
+      const isActive = threadId === activeThreadId;
+      const isIncoming = message.senderId !== viewer.actorId;
+
+      setAllThreads((prev) =>
+        prev.map((t) => {
+          if (t.id !== threadId) return t;
+          const unreadCount = isActive ? 0 : isIncoming ? (t.unreadCount ?? 0) + 1 : t.unreadCount;
+          return { ...t, updatedAt, lastMessagePreview, unreadCount };
+        }),
+      );
+
+      setThreads((prev) => {
+        const hasThread = prev.some((t) => t.id === threadId);
+        let updated = prev.map((t) => {
+          if (t.id !== threadId) return t;
+          const unreadCount = isActive ? 0 : isIncoming ? (t.unreadCount ?? 0) + 1 : t.unreadCount;
+          return { ...t, updatedAt, lastMessagePreview, unreadCount };
+        });
+
+        // If a thread becomes unread while you're on the Unread tab, insert it into the list in real time.
+        if (!hasThread && query.tab === "unread" && !isActive && isIncoming) {
+          const fromAll = allThreadsRef.current.find((t) => t.id === threadId);
+          if (fromAll) {
+            const unreadCount = (fromAll.unreadCount ?? 0) + 1;
+            updated = [{ ...fromAll, updatedAt, lastMessagePreview, unreadCount }, ...updated];
+          }
+        }
+
+        return sortThreadsForQuery(updated);
+      });
+    },
+    [activeThreadId, query.tab, sortThreadsForQuery, viewer.actorId],
+  );
+
+  const handleThreadRead = useCallback(
+    (data: { threadId: string; actorId: string; readAt: string }) => {
+      if (!data?.threadId) return;
+      if (data.actorId !== viewer.actorId) return;
+      setAllThreads((prev) => prev.map((t) => (t.id === data.threadId ? { ...t, unreadCount: 0 } : t)));
+      setThreads((prev) => {
+        const next = prev
+          .map((t) => (t.id === data.threadId ? { ...t, unreadCount: 0 } : t))
+          .filter((t) => (query.tab === "unread" ? (t.unreadCount ?? 0) > 0 : true));
+        return sortThreadsForQuery(next);
+      });
+    },
+    [query.tab, sortThreadsForQuery, viewer.actorId],
+  );
 
   useEffect(() => {
     void refreshAllThreads();
@@ -1093,6 +1267,8 @@ export function MessagesModule({
       if (!message?.threadId) return;
       if (message.internalOnly && !viewer.isStaffView) return;
 
+      applyMessageToThreadLists(message);
+
       if (message.threadId === activeThreadId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev;
@@ -1101,11 +1277,8 @@ export function MessagesModule({
           return next;
         });
       }
-
-      void refreshAllThreads();
-      void refreshThreads();
     },
-    [activeThreadId, refreshAllThreads, refreshThreads, viewer.isStaffView],
+    [activeThreadId, applyMessageToThreadLists, viewer.isStaffView],
   );
 
   const handleMessageDeleted = useCallback(
@@ -1139,10 +1312,34 @@ export function MessagesModule({
       if (message.internalOnly && !viewer.isStaffView) return;
       if (message.threadId !== activeThreadId) return;
       setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, ...message } : m)));
-      void refreshAllThreads();
-      void refreshThreads();
+
+      // Avoid re-fetching threads here; any fetch failure can degrade to mock and "undo" the UI.
+      const now = new Date().toISOString();
+      const nextPreview = String(message.body ?? "").trim().slice(0, 140);
+      setAllThreads((prev) =>
+        prev.map((t) =>
+          t.id === message.threadId
+            ? {
+                ...t,
+                updatedAt: now,
+                ...(message.internalOnly ? {} : { lastMessagePreview: nextPreview }),
+              }
+            : t,
+        ),
+      );
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === message.threadId
+            ? {
+                ...t,
+                updatedAt: now,
+                ...(message.internalOnly ? {} : { lastMessagePreview: nextPreview }),
+              }
+            : t,
+        ),
+      );
     },
-    [activeThreadId, refreshAllThreads, refreshThreads, viewer.isStaffView],
+    [activeThreadId, viewer.isStaffView],
   );
 
   const handleMessageStatus = useCallback(
@@ -1199,7 +1396,29 @@ export function MessagesModule({
     onMessageReaction: handleMessageReaction,
     onThreadCreated: handleThreadCreated,
     onThreadUpdated: handleThreadUpdated,
+    onThreadRead: handleThreadRead,
   });
+
+  const scrollMessageListToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const bottom = messageListBottomRef.current;
+    const root = messageListRef.current;
+    if (bottom) {
+      bottom.scrollIntoView({ block: "end", behavior });
+      return;
+    }
+    if (!root) return;
+    root.scrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
+  }, []);
+
+  const scrollMessageListToBottomSoon = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      requestAnimationFrame(() => {
+        scrollMessageListToBottom(behavior);
+        requestAnimationFrame(() => scrollMessageListToBottom(behavior));
+      });
+    },
+    [scrollMessageListToBottom],
+  );
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -1207,13 +1426,18 @@ export function MessagesModule({
       setEditingMessageId(null);
       setEditingDraft("");
       setEditPending(false);
+      setEditError(null);
       return;
     }
     client
       .listMessages(activeThreadId)
-      .then(({ messages: next }) => setMessages(next))
+      .then(({ messages: next }) => {
+        setMessages(next);
+        pendingScrollToBottomThreadIdRef.current = activeThreadId;
+        scrollMessageListToBottomSoon("auto");
+      })
       .catch(() => setMessages([]));
-  }, [activeThreadId, client]);
+  }, [activeThreadId, client, scrollMessageListToBottomSoon]);
 
   useEffect(() => {
     setComposerChannel(activeThread?.channelDefault ?? "portal");
@@ -1437,10 +1661,13 @@ export function MessagesModule({
 
   const threadDetailsData = useMemo<ThreadDetailsPanelData>(() => {
     if (!activeThread) return threadDetailsDataEmpty;
+    const resident = activeThread.participants.find((p) => p.role === "tenant");
+    const slaLabel = formatSlaLabel(activeThread.slaDueAt);
     return {
       title: activeThread.title,
       status: activeThread.status,
       priority: activeThread.priority,
+      sla: slaLabel,
       createdAtLabel: formatTimestampShort(activeThread.createdAt),
       lastActivityAtLabel: formatTimestampShort(activeThread.updatedAt),
       channel: undefined,
@@ -1451,8 +1678,12 @@ export function MessagesModule({
         unit: activeThread.unitLabel
           ? { label: activeThread.unitLabel, subtext: activeThread.unitId }
           : undefined,
+        resident: resident ? { label: resident.name, subtext: "Resident" } : undefined,
         workOrder: activeThread.linkedWorkOrderId
           ? { label: activeThread.linkedWorkOrderId, subtext: "Work order" }
+          : undefined,
+        task: activeThread.linkedTaskId
+          ? { label: activeThread.linkedTaskId, subtext: "Task" }
           : undefined,
       },
       participants: activeThread.participants.map((p) => ({
@@ -1808,8 +2039,6 @@ export function MessagesModule({
     [client, updateMessageReaction],
   );
 
-  const pendingScrollToBottomThreadIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     setActiveMatchIndex(0);
   }, [inThreadSearch]);
@@ -1820,16 +2049,41 @@ export function MessagesModule({
   }, [activeThreadId]);
 
   useEffect(() => {
+    // Opening a thread should behave like a fresh view.
+    setInThreadSearch("");
+    setOpenMessageMenuId(null);
+    setEditingMessageId(null);
+    setEditingDraft("");
+    setEditPending(false);
+    setExpandedTimestampMessageIds([]);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!activeThreadId) return;
+    // Opening a thread should clear unread count immediately (API read mark is best-effort).
+    setAllThreads((prev) => prev.map((t) => (t.id === activeThreadId ? { ...t, unreadCount: 0 } : t)));
+    setThreads((prev) => {
+      const next = prev
+        .map((t) => (t.id === activeThreadId ? { ...t, unreadCount: 0 } : t))
+        .filter((t) => (query.tab === "unread" ? (t.unreadCount ?? 0) > 0 : true));
+      return sortThreadsForQuery(next);
+    });
+  }, [activeThreadId, query.tab, sortThreadsForQuery]);
+
+  useEffect(() => {
     if (!activeThreadId) return;
     if (pendingScrollToBottomThreadIdRef.current !== activeThreadId) return;
     if (inThreadSearch.trim()) return;
-    const root = messageListRef.current;
-    if (!root) return;
-    requestAnimationFrame(() => {
-      root.scrollTop = root.scrollHeight;
-    });
+    scrollMessageListToBottomSoon("auto");
     pendingScrollToBottomThreadIdRef.current = null;
-  }, [activeThreadId, inThreadSearch, visibleMessages]);
+  }, [activeThreadId, inThreadSearch, scrollMessageListToBottomSoon, visibleMessages]);
+
+  useLayoutEffect(() => {
+    if (!activeThreadId) return;
+    if (pendingScrollToBottomThreadIdRef.current !== activeThreadId) return;
+    if (inThreadSearch.trim()) return;
+    scrollMessageListToBottom("auto");
+  }, [activeThreadId, inThreadSearch, scrollMessageListToBottom, visibleMessages.length]);
 
   useEffect(() => {
     if (!composerActionsOpen) return;
@@ -2068,6 +2322,7 @@ export function MessagesModule({
                             {formatTimestampShort(thread.updatedAt)}
                           </p>
                         </div>
+                        <ThreadStatusPill status={thread.status} />
                         {(thread.unreadCount ?? 0) > 0 ? (
                           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white">
                             {thread.unreadCount}
@@ -2290,6 +2545,7 @@ export function MessagesModule({
                                 setOpenMessageMenuId(null);
                                 setEditingMessageId(m.id);
                                 setEditingDraft(m.body);
+                                setEditError(null);
                               }}
                               isEditing={editingMessageId === m.id}
                               editDraft={editingDraft}
@@ -2298,13 +2554,15 @@ export function MessagesModule({
                                 setEditingMessageId(null);
                                 setEditingDraft("");
                                 setEditPending(false);
+                                setEditError(null);
                               }}
                               onSaveEdit={async () => {
                                 if (!mine) return;
                                 if (editPending) return;
-                                const nextBody = editingDraft.trim();
-                                if (!nextBody) return;
+                                const nextBody = editingDraft;
+                                if (!nextBody.trim()) return;
                                 setEditPending(true);
+                                setEditError(null);
                                 try {
                                   await client.editMessage(m.threadId, m.id, nextBody);
                                   const now = new Date().toISOString();
@@ -2315,14 +2573,36 @@ export function MessagesModule({
                                         : msg,
                                     ),
                                   );
-                                  void refreshAllThreads();
-                                  void refreshThreads();
+
+                                  // Keep thread preview/updated timestamp in sync without re-fetching.
+                                  const nextPreview = nextBody.trim().slice(0, 140);
+                                  setAllThreads((prev) =>
+                                    prev.map((t) =>
+                                      t.id === m.threadId
+                                        ? { ...t, updatedAt: now, lastMessagePreview: nextPreview }
+                                        : t,
+                                    ),
+                                  );
+                                  setThreads((prev) =>
+                                    prev.map((t) =>
+                                      t.id === m.threadId
+                                        ? { ...t, updatedAt: now, lastMessagePreview: nextPreview }
+                                        : t,
+                                    ),
+                                  );
                                   setEditingMessageId(null);
                                   setEditingDraft("");
+                                } catch (e) {
+                                  // Keep the user in edit mode if the API call fails.
+                                  const msg = e instanceof Error ? e.message : String(e);
+                                  setEditError(msg || "Failed to save edit.");
+                                  console.warn("Failed to edit message.", e);
                                 } finally {
                                   setEditPending(false);
                                 }
                               }}
+                              editError={editingMessageId === m.id ? editError ?? undefined : undefined}
+                              editPending={editPending}
                               onDeleteForMe={() => {
                                 setHiddenMessageIds((prevIds) =>
                                   prevIds.includes(m.id) ? prevIds : [...prevIds, m.id],
@@ -2346,6 +2626,7 @@ export function MessagesModule({
                       });
                     })()
                   )}
+                  <div ref={messageListBottomRef} />
                 </div>
               </div>
               {messageListHasMore ? (
@@ -2657,6 +2938,7 @@ export function MessagesModule({
             statusOptions={statusOptions}
             priorityOptions={priorityOptions}
             auditEvents={auditEvents}
+            workOrders={workOrders}
             threadMeta={
               activeThread
                 ? {
@@ -2697,6 +2979,7 @@ export function MessagesModule({
             statusOptions={statusOptions}
             priorityOptions={priorityOptions}
             auditEvents={auditEvents}
+            workOrders={workOrders}
             threadMeta={
               activeThread
                 ? {

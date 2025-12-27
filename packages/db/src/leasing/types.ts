@@ -49,6 +49,12 @@ export type WorkflowConfigData = {
     mode?: "OPEN" | "LOCK_ON_SUBMIT" | "CAP_N_SUBMITS";
     capSubmits?: number;
   };
+  coApplicantAbandonment?: {
+    inactivityDays?: number;
+  };
+  draft?: {
+    ttlDays?: number;
+  };
 };
 
 export type EffectiveDated = {

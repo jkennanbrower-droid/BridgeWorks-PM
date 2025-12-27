@@ -9,6 +9,7 @@ import {
   deleteMessage,
   ensureOrgId,
   isStaffish,
+  listThreadParticipantIds,
   listMessages,
   listThreads,
   markThreadRead,
@@ -219,6 +220,10 @@ export function registerMessagingRoutes({ app, pool, noStore, logger, getIO }) {
       const io = getIO();
       if (io) {
         io.to(`thread:${threadId}`).emit("message:created", created);
+        const participantIds = await listThreadParticipantIds(pool, { orgId: ctx.orgId, threadId });
+        participantIds.forEach((participantId) => {
+          io.to(`user:${participantId}`).emit("message:created", created);
+        });
       }
 
       return res.status(201).json(created);
@@ -318,11 +323,14 @@ export function registerMessagingRoutes({ app, pool, noStore, logger, getIO }) {
       // Emit socket event for real-time update
       const io = getIO();
       if (io) {
-        io.to(`thread:${threadId}`).emit("thread:read", {
+        const payload = {
           threadId,
           actorId: ctx.actorId,
           readAt: new Date().toISOString(),
-        });
+        };
+        io.to(`thread:${threadId}`).emit("thread:read", payload);
+        // Also notify the reader's other tabs (thread rooms only cover the active thread).
+        io.to(`user:${ctx.actorId}`).emit("thread:read", payload);
       }
 
       return res.json(result);

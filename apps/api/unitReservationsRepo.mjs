@@ -229,6 +229,72 @@ export async function releaseReservation(pool, input) {
   });
 }
 
+export async function releaseReservationsForApplication(db, input) {
+  const orgId = String(input.orgId || "").trim();
+  const applicationId = String(input.applicationId || "").trim();
+  const releaseReasonCode = String(input.releaseReasonCode || "").trim();
+  if (!orgId || !applicationId) throw new Error("Missing orgId or applicationId.");
+  if (!releaseReasonCode) throw new Error("Missing releaseReasonCode.");
+
+  const now = input.now ?? new Date();
+
+  const active = await db.query(
+    `
+      SELECT *
+      FROM "unit_reservations"
+      WHERE org_id = $1
+        AND application_id = $2
+        AND status = 'ACTIVE'
+    `,
+    [orgId, applicationId],
+  );
+
+  if (active.rows.length === 0) {
+    return { ok: true, released: 0 };
+  }
+
+  const ids = active.rows.map((row) => row.id);
+  await db.query(
+    `
+      UPDATE "unit_reservations"
+      SET status = 'RELEASED',
+          released_at = $1,
+          released_by_id = $2,
+          release_reason_code = $3,
+          released_reason = $4,
+          updated_at = $1
+      WHERE id = ANY($5::uuid[])
+    `,
+    [
+      now,
+      input.releasedById ?? null,
+      releaseReasonCode,
+      input.releaseReason ?? null,
+      ids,
+    ],
+  );
+
+  for (const row of active.rows) {
+    await insertAuditEvent(db, {
+      orgId,
+      applicationId,
+      eventType: "RESERVATION_RELEASED",
+      targetId: row.id,
+      metadata: {
+        unitId: row.unit_id,
+        kind: row.kind,
+        status: "RELEASED",
+        releaseReasonCode,
+        releasedReason: input.releaseReason ?? null,
+      },
+      actorId: input.releasedById ?? null,
+      createdAt: now,
+    });
+  }
+
+  return { ok: true, released: active.rows.length };
+}
+
 export async function expireReservations(pool, input = {}) {
   const now = input.now ?? new Date();
   return await withTx(pool, async (db) => {

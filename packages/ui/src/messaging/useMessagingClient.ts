@@ -27,57 +27,10 @@ export function useMessagingClient(viewer: ViewerContext): MessagingClient {
       return created;
     }
 
+    // API is enabled: use the DB-backed HTTP client only.
+    // This avoids mixing mock + API data (which can lead to "Thread not found" on edits).
     const http = new HttpMessagingClient(viewer);
-    const mock = new MockMessagingClient(viewer);
-    let degradedToMock = false;
-
-    const wrap = <TArgs extends any[], TResult>(
-      fn: (client: MessagingClient, ...args: TArgs) => Promise<TResult>,
-    ) => {
-      return async (...args: TArgs) => {
-        if (degradedToMock) return await fn(mock, ...args);
-        try {
-          return await fn(http, ...args);
-        } catch (e) {
-          degradedToMock = true;
-          // TODO: surface a non-blocking UI toast when toast infra exists.
-          console.warn("Messaging API unavailable; falling back to mock.", e);
-          return await fn(mock, ...args);
-        }
-      };
-    };
-
-    const wrapNoFallback = <TArgs extends any[], TResult>(
-      fn: (client: MessagingClient, ...args: TArgs) => Promise<TResult>,
-    ) => {
-      return async (...args: TArgs) => {
-        if (degradedToMock) return await fn(mock, ...args);
-        return await fn(http, ...args);
-      };
-    };
-
-    const created: MessagingClient = {
-      listThreads: wrap((c, q) => c.listThreads(q)),
-      listMessages: wrap((c, id) => c.listMessages(id)),
-      createThread: wrap((c, input) => c.createThread(input)),
-      sendMessage: wrap((c, id, input) => c.sendMessage(id, input)),
-      deleteMessage: wrap((c, id, msgId) => c.deleteMessage(id, msgId)),
-      editMessage: wrapNoFallback((c, id, msgId, body) => c.editMessage(id, msgId, body)),
-      addReaction: wrapNoFallback((c, id, msgId, emoji) => c.addReaction(id, msgId, emoji)),
-      removeReaction: wrapNoFallback((c, id, msgId, emoji) => c.removeReaction(id, msgId, emoji)),
-      getReadReceipts: wrap((c, id) => c.getReadReceipts(id)),
-      updateThread: wrap((c, id, patch) => c.updateThread(id, patch)),
-      bulkUpdateThreads: wrap((c, ids, action) => c.bulkUpdateThreads(ids, action)),
-      searchGlobal: wrap((c, input) => c.searchGlobal(input)),
-      resetDemoSessionData: mock.resetDemoSessionData?.bind(mock),
-    };
-
-    (created as any).getParticipants = () =>
-      (http as any).getParticipants?.() ?? (mock as any).getParticipants?.() ?? [];
-    (created as any).getAudit = (threadId: string) =>
-      (http as any).getAudit?.(threadId) ?? (mock as any).getAudit?.(threadId) ?? [];
-
-    clientByNamespace.set(namespaceKey, created);
-    return created;
+    clientByNamespace.set(namespaceKey, http);
+    return http;
   }, [namespaceKey, viewer]);
 }
